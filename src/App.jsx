@@ -10,202 +10,345 @@ import {
   formatBearing
 } from './utils/greatCircle';
 
+const ROUTE_COLORS = ['#667eea', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
+
 function App() {
-  const [origin, setOrigin] = useState({
-    lat: '',
-    lon: '',
-    name: ''
-  });
+  const [routes, setRoutes] = useState([
+    {
+      id: 1,
+      name: 'Route 1',
+      waypoints: [null, null], // Start with origin and destination
+      color: ROUTE_COLORS[0],
+      results: null,
+      paths: []
+    }
+  ]);
 
-  const [destination, setDestination] = useState({
-    lat: '',
-    lon: '',
-    name: ''
-  });
+  const [speed, setSpeed] = useState(900);
+  const [projection, setProjection] = useState('globe');
+  const [activeRouteId, setActiveRouteId] = useState(1);
 
-  const [speed, setSpeed] = useState(900); // Default: commercial aircraft speed
-  const [results, setResults] = useState(null);
-  const [path, setPath] = useState(null);
-  const [clickMode, setClickMode] = useState('origin'); // 'origin' or 'destination'
-  const [projection, setProjection] = useState('globe'); // 'globe' or 'mercator'
+  const activeRoute = routes.find(r => r.id === activeRouteId);
 
-  const handleCalculate = () => {
-    const lat1 = parseFloat(origin.lat);
-    const lon1 = parseFloat(origin.lon);
-    const lat2 = parseFloat(destination.lat);
-    const lon2 = parseFloat(destination.lon);
+  const addWaypoint = (routeId) => {
+    setRoutes(routes.map(route => {
+      if (route.id === routeId) {
+        const newWaypoints = [...route.waypoints];
+        newWaypoints.splice(newWaypoints.length - 1, 0, null); // Insert before last (destination)
+        return { ...route, waypoints: newWaypoints };
+      }
+      return route;
+    }));
+  };
+
+  const removeWaypoint = (routeId, index) => {
+    setRoutes(routes.map(route => {
+      if (route.id === routeId && route.waypoints.length > 2) {
+        const newWaypoints = route.waypoints.filter((_, i) => i !== index);
+        return { ...route, waypoints: newWaypoints };
+      }
+      return route;
+    }));
+  };
+
+  const updateWaypoint = (routeId, index, airport) => {
+    setRoutes(routes.map(route => {
+      if (route.id === routeId) {
+        const newWaypoints = [...route.waypoints];
+        newWaypoints[index] = airport;
+        return { ...route, waypoints: newWaypoints };
+      }
+      return route;
+    }));
+  };
+
+  const addRoute = () => {
+    const newId = Math.max(...routes.map(r => r.id)) + 1;
+    const colorIndex = routes.length % ROUTE_COLORS.length;
+
+    setRoutes([...routes, {
+      id: newId,
+      name: `Route ${newId}`,
+      waypoints: [null, null],
+      color: ROUTE_COLORS[colorIndex],
+      results: null,
+      paths: []
+    }]);
+    setActiveRouteId(newId);
+  };
+
+  const removeRoute = (routeId) => {
+    if (routes.length === 1) return;
+
+    const newRoutes = routes.filter(r => r.id !== routeId);
+    setRoutes(newRoutes);
+
+    if (activeRouteId === routeId) {
+      setActiveRouteId(newRoutes[0].id);
+    }
+  };
+
+  const calculateRoute = (routeId) => {
+    const route = routes.find(r => r.id === routeId);
+    if (!route) return;
+
+    const validWaypoints = route.waypoints.filter(w => w && w.lat && w.lon);
+
+    if (validWaypoints.length < 2) {
+      alert('Please select at least origin and destination airports');
+      return;
+    }
+
     const speedValue = parseFloat(speed);
+    let totalDistance = 0;
+    const paths = [];
+    const segments = [];
 
-    if (isNaN(lat1) || isNaN(lon1) || isNaN(lat2) || isNaN(lon2) || isNaN(speedValue)) {
-      alert('Please enter valid coordinates and speed');
-      return;
+    // Calculate each leg
+    for (let i = 0; i < validWaypoints.length - 1; i++) {
+      const from = validWaypoints[i];
+      const to = validWaypoints[i + 1];
+
+      const distance = calculateDistance(
+        parseFloat(from.lat),
+        parseFloat(from.lon),
+        parseFloat(to.lat),
+        parseFloat(to.lon)
+      );
+
+      const bearing = calculateBearing(
+        parseFloat(from.lat),
+        parseFloat(from.lon),
+        parseFloat(to.lat),
+        parseFloat(to.lon)
+      );
+
+      const path = generateGreatCirclePath(
+        parseFloat(from.lat),
+        parseFloat(from.lon),
+        parseFloat(to.lat),
+        parseFloat(to.lon),
+        100
+      );
+
+      totalDistance += distance;
+      paths.push(path);
+
+      segments.push({
+        from: from.code || from.name,
+        to: to.code || to.name,
+        distance: formatDistance(distance),
+        bearing: formatBearing(bearing)
+      });
     }
 
-    if (lat1 < -90 || lat1 > 90 || lat2 < -90 || lat2 > 90) {
-      alert('Latitude must be between -90 and 90');
-      return;
-    }
+    const distances = formatDistance(totalDistance);
+    const travelTime = formatTravelTime(totalDistance, speedValue);
 
-    if (lon1 < -180 || lon1 > 180 || lon2 < -180 || lon2 > 180) {
-      alert('Longitude must be between -180 and 180');
-      return;
-    }
-
-    const distance = calculateDistance(lat1, lon1, lat2, lon2);
-    const bearing = calculateBearing(lat1, lon1, lat2, lon2);
-    const distances = formatDistance(distance);
-    const travelTime = formatTravelTime(distance, speedValue);
-
-    setResults({
-      distance: distances,
-      bearing: formatBearing(bearing),
-      travelTime
-    });
-
-    // Generate path for visualization
-    const greatCirclePath = generateGreatCirclePath(lat1, lon1, lat2, lon2, 100);
-    setPath(greatCirclePath);
+    setRoutes(routes.map(r => {
+      if (r.id === routeId) {
+        return {
+          ...r,
+          results: {
+            distance: distances,
+            travelTime,
+            segments,
+            totalDistance
+          },
+          paths
+        };
+      }
+      return r;
+    }));
   };
 
   const handleClear = () => {
-    setOrigin({ lat: '', lon: '', name: '' });
-    setDestination({ lat: '', lon: '', name: '' });
-    setSpeed(900);
-    setResults(null);
-    setPath(null);
-  };
-
-  const handleMapClick = (latlng) => {
-    if (clickMode === 'origin') {
-      setOrigin({
-        ...origin,
-        lat: latlng.lat.toFixed(4),
-        lon: latlng.lng.toFixed(4)
-      });
-      setClickMode('destination');
-    } else {
-      setDestination({
-        ...destination,
-        lat: latlng.lat.toFixed(4),
-        lon: latlng.lng.toFixed(4)
-      });
-      setClickMode('origin');
-    }
-  };
-
-  const getMapOrigin = () => {
-    if (origin.lat && origin.lon) {
-      return {
-        lat: parseFloat(origin.lat),
-        lon: parseFloat(origin.lon),
-        name: origin.name
-      };
-    }
-    return null;
-  };
-
-  const getMapDestination = () => {
-    if (destination.lat && destination.lon) {
-      return {
-        lat: parseFloat(destination.lat),
-        lon: parseFloat(destination.lon),
-        name: destination.name
-      };
-    }
-    return null;
+    setRoutes(routes.map(route => ({
+      ...route,
+      waypoints: route.waypoints.map(() => null),
+      results: null,
+      paths: []
+    })));
   };
 
   return (
     <div className="app">
       <header className="header">
         <h1>Great Circle Calculator</h1>
-        <p>Calculate the shortest path between two points on Earth</p>
+        <p>Compare multi-leg flight routes</p>
       </header>
 
       <div className="main-content">
         <div className="input-panel">
-          <div className="input-section">
-            <h2>Origin Airport</h2>
-            <AirportSearch
-              label="Search Origin Airport"
-              value={origin}
-              onChange={setOrigin}
-              placeholder="Enter airport code, name, or city..."
-            />
+          {/* Route Tabs */}
+          <div className="route-tabs">
+            {routes.map(route => (
+              <div
+                key={route.id}
+                className={`route-tab ${activeRouteId === route.id ? 'active' : ''}`}
+                onClick={() => setActiveRouteId(route.id)}
+                style={{
+                  borderBottomColor: activeRouteId === route.id ? route.color : 'transparent'
+                }}
+              >
+                <span className="route-dot" style={{ backgroundColor: route.color }}></span>
+                {route.name}
+                {routes.length > 1 && (
+                  <button
+                    className="remove-route-btn"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeRoute(route.id);
+                    }}
+                    title="Remove route"
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+            ))}
+            <button className="add-route-btn" onClick={addRoute} title="Add route">
+              + Add Route
+            </button>
           </div>
 
-          <div className="input-section">
-            <h2>Destination Airport</h2>
-            <AirportSearch
-              label="Search Destination Airport"
-              value={destination}
-              onChange={setDestination}
-              placeholder="Enter airport code, name, or city..."
-            />
-          </div>
+          {/* Waypoints for Active Route */}
+          {activeRoute && (
+            <>
+              {activeRoute.waypoints.map((waypoint, index) => (
+                <div key={index} className="waypoint-section">
+                  <div className="waypoint-header">
+                    <h2>
+                      {index === 0 ? 'Origin' :
+                       index === activeRoute.waypoints.length - 1 ? 'Destination' :
+                       `Stop ${index}`}
+                    </h2>
+                    {index > 0 && index < activeRoute.waypoints.length - 1 && (
+                      <button
+                        className="remove-waypoint-btn"
+                        onClick={() => removeWaypoint(activeRoute.id, index)}
+                        title="Remove stop"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                  <AirportSearch
+                    label={`Search Airport`}
+                    value={waypoint}
+                    onChange={(airport) => updateWaypoint(activeRoute.id, index, airport)}
+                    placeholder="Enter airport code, name, or city..."
+                  />
+                </div>
+              ))}
 
-          <div className="input-section">
-            <h2>Travel Parameters</h2>
-            <div className="input-group">
-              <label htmlFor="speed">Average Speed (km/h):</label>
-              <input
-                type="number"
-                id="speed"
-                placeholder="e.g., 900"
-                value={speed}
-                onChange={(e) => setSpeed(e.target.value)}
-                step="1"
-                min="1"
-              />
-            </div>
-            <small>Typical speeds: Commercial aircraft ~900 km/h, Ship ~40 km/h</small>
-          </div>
+              <button
+                className="btn-secondary add-waypoint-btn"
+                onClick={() => addWaypoint(activeRoute.id)}
+              >
+                + Add Stop
+              </button>
 
-          <button className="btn-primary" onClick={handleCalculate}>
-            Calculate Great Circle
-          </button>
-          <button className="btn-secondary" onClick={handleClear}>
-            Clear
-          </button>
+              <div className="input-section">
+                <h2>Travel Parameters</h2>
+                <div className="input-group">
+                  <label htmlFor="speed">Average Speed (km/h):</label>
+                  <input
+                    type="number"
+                    id="speed"
+                    placeholder="e.g., 900"
+                    value={speed}
+                    onChange={(e) => setSpeed(e.target.value)}
+                    step="1"
+                    min="1"
+                  />
+                </div>
+                <small>Typical speeds: Commercial aircraft ~900 km/h, Ship ~40 km/h</small>
+              </div>
 
-          {results && (
-            <div className="results">
-              <h2>Results</h2>
-              <div className="result-item">
-                <span className="result-label">Distance:</span>
-                <span className="result-value">{results.distance.km} km</span>
-              </div>
-              <div className="result-item">
-                <span className="result-label">Distance (miles):</span>
-                <span className="result-value">{results.distance.miles} mi</span>
-              </div>
-              <div className="result-item">
-                <span className="result-label">Distance (nautical miles):</span>
-                <span className="result-value">{results.distance.nauticalMiles} nm</span>
-              </div>
-              <div className="result-item">
-                <span className="result-label">Travel Time:</span>
-                <span className="result-value">{results.travelTime}</span>
-              </div>
-              <div className="result-item">
-                <span className="result-label">Initial Bearing:</span>
-                <span className="result-value">{results.bearing}</span>
-              </div>
+              <button
+                className="btn-primary"
+                onClick={() => calculateRoute(activeRoute.id)}
+              >
+                Calculate Route
+              </button>
+              <button className="btn-secondary" onClick={handleClear}>
+                Clear All
+              </button>
+
+              {/* Results for Active Route */}
+              {activeRoute.results && (
+                <div className="results">
+                  <h2>Results</h2>
+                  <div className="result-item">
+                    <span className="result-label">Total Distance:</span>
+                    <span className="result-value">{activeRoute.results.distance.km} km</span>
+                  </div>
+                  <div className="result-item">
+                    <span className="result-label">Distance (miles):</span>
+                    <span className="result-value">{activeRoute.results.distance.miles} mi</span>
+                  </div>
+                  <div className="result-item">
+                    <span className="result-label">Distance (nautical miles):</span>
+                    <span className="result-value">{activeRoute.results.distance.nauticalMiles} nm</span>
+                  </div>
+                  <div className="result-item">
+                    <span className="result-label">Travel Time:</span>
+                    <span className="result-value">{activeRoute.results.travelTime}</span>
+                  </div>
+
+                  {activeRoute.results.segments && activeRoute.results.segments.length > 0 && (
+                    <div className="segments">
+                      <h3>Segments</h3>
+                      {activeRoute.results.segments.map((seg, idx) => (
+                        <div key={idx} className="segment-item">
+                          <strong>{seg.from} → {seg.to}</strong>
+                          <div className="segment-details">
+                            {seg.distance.km} km • {seg.bearing}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Comparison Table */}
+          {routes.filter(r => r.results).length > 1 && (
+            <div className="comparison">
+              <h2>Route Comparison</h2>
+              <table className="comparison-table">
+                <thead>
+                  <tr>
+                    <th>Route</th>
+                    <th>Distance</th>
+                    <th>Time</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {routes.filter(r => r.results).map(route => (
+                    <tr key={route.id}>
+                      <td>
+                        <span className="route-dot" style={{ backgroundColor: route.color }}></span>
+                        {route.name}
+                      </td>
+                      <td>{route.results.distance.km} km</td>
+                      <td>{route.results.travelTime}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </div>
 
         <div className="map-panel">
           <Map
-            origin={getMapOrigin()}
-            destination={getMapDestination()}
-            path={path}
-            onMapClick={handleMapClick}
+            routes={routes.filter(r => r.paths.length > 0)}
             projection={projection}
           />
-          <div className="map-instructions">
-            Click on map to set {clickMode === 'origin' ? 'origin' : 'destination'} point
-          </div>
           <div className="map-controls">
             <button
               className={`projection-toggle ${projection === 'globe' ? 'active' : ''}`}
