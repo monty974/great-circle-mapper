@@ -5,6 +5,7 @@ import 'mapbox-gl/dist/mapbox-gl.css';
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
 // Split a path into segments when it crosses the dateline
+// Interpolates points at ±180° to create seamless visual connection
 function splitPathAtDateline(path) {
   if (!path || path.length === 0) return [];
 
@@ -16,13 +17,25 @@ function splitPathAtDateline(path) {
     const [currLat, currLon] = path[i];
 
     // Check if we crossed the dateline (longitude jump > 180°)
-    const lonDiff = Math.abs(currLon - prevLon);
+    const lonDiff = currLon - prevLon;
 
-    if (lonDiff > 180) {
-      // Finish current segment
-      segments.push(currentSegment);
-      // Start new segment
-      currentSegment = [[currLat, currLon]];
+    if (Math.abs(lonDiff) > 180) {
+      // Calculate interpolated latitude at the dateline
+      const crossingFraction = (180 - Math.abs(prevLon)) / (Math.abs(lonDiff) - 360);
+      const crossingLat = prevLat + (currLat - prevLat) * crossingFraction;
+
+      // Determine which side of dateline we're crossing to/from
+      if (lonDiff > 0) {
+        // Crossing from negative to positive (west to east)
+        currentSegment.push([crossingLat, 180]);
+        segments.push(currentSegment);
+        currentSegment = [[crossingLat, -180], [currLat, currLon]];
+      } else {
+        // Crossing from positive to negative (east to west)
+        currentSegment.push([crossingLat, -180]);
+        segments.push(currentSegment);
+        currentSegment = [[crossingLat, 180], [currLat, currLon]];
+      }
     } else {
       currentSegment.push([currLat, currLon]);
     }
@@ -44,14 +57,19 @@ export default function MapComponent({ routes = [], projection = 'globe' }) {
     zoom: 2
   });
 
-  // Fit bounds when routes are added
+  // Fit bounds when routes are calculated
   useEffect(() => {
     if (routes.length > 0 && mapRef.current) {
+      // Check if any routes have been calculated (have results)
+      const calculatedRoutes = routes.filter(r => r.results && r.paths && r.paths.length > 0);
+
+      if (calculatedRoutes.length === 0) return;
+
       const map = mapRef.current.getMap();
 
-      // Collect all waypoints from all routes
+      // Collect all waypoints from calculated routes only
       const allWaypoints = [];
-      routes.forEach(route => {
+      calculatedRoutes.forEach(route => {
         route.waypoints?.forEach(wp => {
           if (wp && wp.lat && wp.lon) {
             allWaypoints.push([parseFloat(wp.lon), parseFloat(wp.lat)]);
@@ -71,7 +89,8 @@ export default function MapComponent({ routes = [], projection = 'globe' }) {
 
         map.fitBounds(bounds, {
           padding: 100,
-          duration: 1000
+          duration: 1000,
+          maxZoom: 5 // Don't zoom in too close
         });
       }
     }
