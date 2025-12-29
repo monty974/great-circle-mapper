@@ -27,6 +27,7 @@ function App() {
   const [results, setResults] = useState(null);
   const [path, setPath] = useState(null);
   const [clickMode, setClickMode] = useState('origin'); // 'origin' or 'destination'
+  const [projection, setProjection] = useState('globe'); // 'globe' or 'mercator'
 
   const handleCalculate = () => {
     const lat1 = parseFloat(origin.lat);
@@ -200,9 +201,26 @@ function App() {
             destination={getMapDestination()}
             path={path}
             onMapClick={handleMapClick}
+            projection={projection}
           />
           <div className="map-instructions">
             Click on map to set {clickMode === 'origin' ? 'origin' : 'destination'} point
+          </div>
+          <div className="map-controls">
+            <button
+              className={`projection-toggle ${projection === 'globe' ? 'active' : ''}`}
+              onClick={() => setProjection('globe')}
+              title="3D Globe View"
+            >
+              🌍 Globe
+            </button>
+            <button
+              className={`projection-toggle ${projection === 'mercator' ? 'active' : ''}`}
+              onClick={() => setProjection('mercator')}
+              title="Flat Map View"
+            >
+              🗺️ Flat
+            </button>
           </div>
         </div>
       </div>

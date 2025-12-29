@@ -15,7 +15,7 @@ const lineLayer = {
   }
 };
 
-export default function MapComponent({ origin, destination, path, onMapClick }) {
+export default function MapComponent({ origin, destination, path, onMapClick, projection = 'globe' }) {
   const mapRef = useRef();
   const [viewState, setViewState] = useState({
     longitude: 0,
@@ -66,6 +66,7 @@ export default function MapComponent({ origin, destination, path, onMapClick }) 
       onClick={handleMapClick}
       mapboxAccessToken={MAPBOX_TOKEN}
       mapStyle="mapbox://styles/mapbox/streets-v12"
+      projection={projection}
       style={{ width: '100%', height: '100%' }}
     >
       {/* Origin Marker (Green) */}
