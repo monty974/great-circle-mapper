@@ -1,119 +1,141 @@
-import { useEffect } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
+import { useEffect, useRef, useState } from 'react';
+import Map, { Marker, Source, Layer } from 'react-map-gl';
+import 'mapbox-gl/dist/mapbox-gl.css';
 
-// Fix for default marker icons in React Leaflet
-delete L.Icon.Default.prototype._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
-  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
-  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
-});
+const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
-// Custom icons for origin and destination
-const originIcon = new L.Icon({
-  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
-  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowSize: [41, 41]
-});
+// Layer style for the great circle path
+const lineLayer = {
+  id: 'great-circle-route',
+  type: 'line',
+  paint: {
+    'line-color': '#667eea',
+    'line-width': 3,
+    'line-opacity': 0.8
+  }
+};
 
-const destinationIcon = new L.Icon({
-  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
-  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowSize: [41, 41]
-});
+export default function MapComponent({ origin, destination, path, onMapClick }) {
+  const mapRef = useRef();
+  const [viewState, setViewState] = useState({
+    longitude: 0,
+    latitude: 20,
+    zoom: 2
+  });
 
-// Component to fit bounds when markers change
-function FitBounds({ origin, destination }) {
-  const map = useMap();
-
+  // Fit bounds when both origin and destination are set
   useEffect(() => {
-    if (origin && destination) {
-      const bounds = L.latLngBounds([
-        [origin.lat, origin.lon],
-        [destination.lat, destination.lon]
-      ]);
-      map.fitBounds(bounds, { padding: [50, 50] });
+    if (origin && destination && mapRef.current) {
+      const map = mapRef.current.getMap();
+
+      const bounds = [
+        [Math.min(origin.lon, destination.lon), Math.min(origin.lat, destination.lat)],
+        [Math.max(origin.lon, destination.lon), Math.max(origin.lat, destination.lat)]
+      ];
+
+      map.fitBounds(bounds, {
+        padding: 100,
+        duration: 1000
+      });
     }
-  }, [origin, destination, map]);
+  }, [origin, destination]);
 
-  return null;
-}
+  const handleMapClick = (event) => {
+    if (onMapClick) {
+      onMapClick({
+        lat: event.lngLat.lat,
+        lng: event.lngLat.lng
+      });
+    }
+  };
 
-// Component to handle map clicks
-function MapClickHandler({ onMapClick }) {
-  const map = useMap();
-
-  useEffect(() => {
-    const handleClick = (e) => {
-      onMapClick(e.latlng);
-    };
-
-    map.on('click', handleClick);
-
-    return () => {
-      map.off('click', handleClick);
-    };
-  }, [map, onMapClick]);
-
-  return null;
-}
-
-export default function Map({ origin, destination, path, onMapClick }) {
-  const center = [20, 0]; // Center of the world
-  const zoom = 2;
+  // Convert path to GeoJSON for the line layer
+  const pathGeoJSON = path && path.length > 0 ? {
+    type: 'Feature',
+    geometry: {
+      type: 'LineString',
+      coordinates: path.map(([lat, lon]) => [lon, lat])
+    }
+  } : null;
 
   return (
-    <MapContainer
-      center={center}
-      zoom={zoom}
-      style={{ height: '100%', width: '100%' }}
-      scrollWheelZoom={true}
+    <Map
+      ref={mapRef}
+      {...viewState}
+      onMove={evt => setViewState(evt.viewState)}
+      onClick={handleMapClick}
+      mapboxAccessToken={MAPBOX_TOKEN}
+      mapStyle="mapbox://styles/mapbox/streets-v12"
+      style={{ width: '100%', height: '100%' }}
     >
-      <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-      />
-
-      {onMapClick && <MapClickHandler onMapClick={onMapClick} />}
-
+      {/* Origin Marker (Green) */}
       {origin && (
-        <Marker position={[origin.lat, origin.lon]} icon={originIcon}>
-          <Popup>
-            <strong>{origin.name || 'Origin'}</strong><br />
-            Lat: {origin.lat.toFixed(4)}<br />
-            Lon: {origin.lon.toFixed(4)}
-          </Popup>
+        <Marker
+          longitude={origin.lon}
+          latitude={origin.lat}
+          anchor="bottom"
+        >
+          <div style={{
+            backgroundColor: '#10b981',
+            width: '30px',
+            height: '30px',
+            borderRadius: '50% 50% 50% 0',
+            transform: 'rotate(-45deg)',
+            border: '2px solid white',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.3)'
+          }}>
+            <div style={{
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%) rotate(45deg)',
+              color: 'white',
+              fontWeight: 'bold',
+              fontSize: '12px'
+            }}>
+              A
+            </div>
+          </div>
         </Marker>
       )}
 
+      {/* Destination Marker (Red) */}
       {destination && (
-        <Marker position={[destination.lat, destination.lon]} icon={destinationIcon}>
-          <Popup>
-            <strong>{destination.name || 'Destination'}</strong><br />
-            Lat: {destination.lat.toFixed(4)}<br />
-            Lon: {destination.lon.toFixed(4)}
-          </Popup>
+        <Marker
+          longitude={destination.lon}
+          latitude={destination.lat}
+          anchor="bottom"
+        >
+          <div style={{
+            backgroundColor: '#ef4444',
+            width: '30px',
+            height: '30px',
+            borderRadius: '50% 50% 50% 0',
+            transform: 'rotate(-45deg)',
+            border: '2px solid white',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.3)'
+          }}>
+            <div style={{
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%) rotate(45deg)',
+              color: 'white',
+              fontWeight: 'bold',
+              fontSize: '12px'
+            }}>
+              B
+            </div>
+          </div>
         </Marker>
       )}
 
-      {path && path.length > 0 && (
-        <Polyline
-          positions={path}
-          color="#667eea"
-          weight={3}
-          opacity={0.8}
-        />
+      {/* Great Circle Path */}
+      {pathGeoJSON && (
+        <Source id="route" type="geojson" data={pathGeoJSON}>
+          <Layer {...lineLayer} />
+        </Source>
       )}
-
-      {origin && destination && <FitBounds origin={origin} destination={destination} />}
-    </MapContainer>
+    </Map>
   );
 }

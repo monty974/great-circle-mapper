@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import Map from './components/Map';
+import AirportSearch from './components/AirportSearch';
 import {
   calculateDistance,
   calculateBearing,
@@ -123,83 +124,23 @@ function App() {
       <div className="main-content">
         <div className="input-panel">
           <div className="input-section">
-            <h2>Origin</h2>
-            <div className="input-group">
-              <label htmlFor="origin-lat">Latitude:</label>
-              <input
-                type="number"
-                id="origin-lat"
-                placeholder="e.g., 40.7128"
-                step="0.0001"
-                min="-90"
-                max="90"
-                value={origin.lat}
-                onChange={(e) => setOrigin({ ...origin, lat: e.target.value })}
-              />
-            </div>
-            <div className="input-group">
-              <label htmlFor="origin-lon">Longitude:</label>
-              <input
-                type="number"
-                id="origin-lon"
-                placeholder="e.g., -74.0060"
-                step="0.0001"
-                min="-180"
-                max="180"
-                value={origin.lon}
-                onChange={(e) => setOrigin({ ...origin, lon: e.target.value })}
-              />
-            </div>
-            <div className="input-group">
-              <label htmlFor="origin-name">Location Name:</label>
-              <input
-                type="text"
-                id="origin-name"
-                placeholder="e.g., New York"
-                value={origin.name}
-                onChange={(e) => setOrigin({ ...origin, name: e.target.value })}
-              />
-            </div>
+            <h2>Origin Airport</h2>
+            <AirportSearch
+              label="Search Origin Airport"
+              value={origin}
+              onChange={setOrigin}
+              placeholder="Enter airport code, name, or city..."
+            />
           </div>
 
           <div className="input-section">
-            <h2>Destination</h2>
-            <div className="input-group">
-              <label htmlFor="dest-lat">Latitude:</label>
-              <input
-                type="number"
-                id="dest-lat"
-                placeholder="e.g., 51.5074"
-                step="0.0001"
-                min="-90"
-                max="90"
-                value={destination.lat}
-                onChange={(e) => setDestination({ ...destination, lat: e.target.value })}
-              />
-            </div>
-            <div className="input-group">
-              <label htmlFor="dest-lon">Longitude:</label>
-              <input
-                type="number"
-                id="dest-lon"
-                placeholder="e.g., -0.1278"
-                step="0.0001"
-                min="-180"
-                max="180"
-                value={destination.lon}
-                onChange={(e) => setDestination({ ...destination, lon: e.target.value })}
-              />
-            </div>
-            <div className="input-group">
-              <label htmlFor="dest-name">Location Name:</label>
-              <input
-                type="text"
-                id="dest-name"
-                placeholder="e.g., London"
-                value={destination.name}
-                onChange={(e) => setDestination({ ...destination, name: e.target.value })}
-              />
-            </div>
+            <h2>Destination Airport</h2>
+            <AirportSearch
+              label="Search Destination Airport"
+              value={destination}
+              onChange={setDestination}
+              placeholder="Enter airport code, name, or city..."
+            />
           </div>
 
           <div className="input-section">
