@@ -1,7 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 
 // Create Supabase client
-// For Vercel serverless functions, use non-VITE prefixed env vars
 const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
 
@@ -38,18 +37,30 @@ export default async function handler(req, res) {
   try {
     const supabaseClient = getSupabase();
 
-    console.log('API called with:', { search, code });
-
     // If searching by specific airport code
     if (code) {
       const codeUpper = code.toUpperCase();
 
-      const { data, error } = await supabaseClient
+      // Try exact match on IATA first
+      let { data, error } = await supabaseClient
         .from('airports')
         .select('*')
-        .or(`iata.eq.${codeUpper},icao.eq.${codeUpper}`)
+        .eq('iata', codeUpper)
         .limit(1)
         .maybeSingle();
+
+      // If not found, try ICAO
+      if (!data && !error) {
+        const result = await supabaseClient
+          .from('airports')
+          .select('*')
+          .eq('icao', codeUpper)
+          .limit(1)
+          .maybeSingle();
+
+        data = result.data;
+        error = result.error;
+      }
 
       if (error) {
         console.error('Supabase error (code search):', error);
@@ -74,39 +85,35 @@ export default async function handler(req, res) {
         return res.status(200).json([]);
       }
 
-      // Try simpler approach: fetch matching airports using text pattern
-      const pattern = `%${searchTerm}%`;
-
+      // Fetch all airports and filter in JavaScript (simple but works)
       const { data, error } = await supabaseClient
         .from('airports')
         .select('iata, icao, name, city, country, latitude, longitude')
-        .or(`iata.ilike.${pattern},icao.ilike.${pattern},name.ilike.${pattern},city.ilike.${pattern}`)
-        .limit(20);
+        .limit(1000);
 
       if (error) {
         console.error('Supabase search error:', error);
-
-        // Fallback: try fetching without OR filter
-        const { data: fallbackData, error: fallbackError } = await supabaseClient
-          .from('airports')
-          .select('iata, icao, name, city, country, latitude, longitude')
-          .ilike('name', pattern)
-          .limit(20);
-
-        if (fallbackError) {
-          console.error('Fallback search also failed:', fallbackError);
-          return res.status(500).json({
-            error: 'Database error',
-            message: fallbackError.message
-          });
-        }
-
-        console.log('Fallback search found:', fallbackData?.length || 0, 'airports');
-        return res.status(200).json(fallbackData || []);
+        return res.status(500).json({
+          error: 'Database error',
+          message: error.message
+        });
       }
 
-      console.log('Search found:', data?.length || 0, 'airports');
-      return res.status(200).json(data || []);
+      // Filter results in JavaScript
+      const searchLower = searchTerm.toLowerCase();
+      const results = (data || [])
+        .filter(airport => {
+          return (
+            airport.iata?.toLowerCase().includes(searchLower) ||
+            airport.icao?.toLowerCase().includes(searchLower) ||
+            airport.name?.toLowerCase().includes(searchLower) ||
+            airport.city?.toLowerCase().includes(searchLower)
+          );
+        })
+        .slice(0, 20);
+
+      console.log('Search for', searchTerm, 'found', results.length, 'airports');
+      return res.status(200).json(results);
     }
 
     // Return popular airports if no search term
@@ -131,7 +138,8 @@ export default async function handler(req, res) {
     console.error('Unexpected error:', error);
     return res.status(500).json({
       error: 'Unexpected error',
-      message: error.message
+      message: error.message,
+      stack: error.stack
     });
   }
 }
