@@ -38,16 +38,28 @@ export default async function handler(req, res) {
   try {
     const supabaseClient = getSupabase();
 
+    console.log('API called with:', { search, code });
+
     // If searching by specific airport code
     if (code) {
+      const codeUpper = code.toUpperCase();
+
       const { data, error } = await supabaseClient
         .from('airports')
         .select('*')
-        .or(`iata.ilike.${code},icao.ilike.${code}`)
+        .or(`iata.eq.${codeUpper},icao.eq.${codeUpper}`)
         .limit(1)
-        .single();
+        .maybeSingle();
 
-      if (error || !data) {
+      if (error) {
+        console.error('Supabase error (code search):', error);
+        return res.status(500).json({
+          error: 'Database error',
+          message: error.message
+        });
+      }
+
+      if (!data) {
         return res.status(404).json({ error: 'Airport not found' });
       }
 
@@ -56,21 +68,44 @@ export default async function handler(req, res) {
 
     // If searching by name/code (autocomplete)
     if (search) {
+      const searchTerm = search.trim();
+
+      if (searchTerm.length < 2) {
+        return res.status(200).json([]);
+      }
+
+      // Try simpler approach: fetch matching airports using text pattern
+      const pattern = `%${searchTerm}%`;
+
       const { data, error } = await supabaseClient
         .from('airports')
         .select('iata, icao, name, city, country, latitude, longitude')
-        .or(`iata.ilike.%${search}%,icao.ilike.%${search}%,name.ilike.%${search}%,city.ilike.%${search}%`)
-        .order('name')
+        .or(`iata.ilike.${pattern},icao.ilike.${pattern},name.ilike.${pattern},city.ilike.${pattern}`)
         .limit(20);
 
       if (error) {
-        console.error('Supabase error:', error);
-        return res.status(500).json({
-          error: 'Database error',
-          message: error.message
-        });
+        console.error('Supabase search error:', error);
+
+        // Fallback: try fetching without OR filter
+        const { data: fallbackData, error: fallbackError } = await supabaseClient
+          .from('airports')
+          .select('iata, icao, name, city, country, latitude, longitude')
+          .ilike('name', pattern)
+          .limit(20);
+
+        if (fallbackError) {
+          console.error('Fallback search also failed:', fallbackError);
+          return res.status(500).json({
+            error: 'Database error',
+            message: fallbackError.message
+          });
+        }
+
+        console.log('Fallback search found:', fallbackData?.length || 0, 'airports');
+        return res.status(200).json(fallbackData || []);
       }
 
+      console.log('Search found:', data?.length || 0, 'airports');
       return res.status(200).json(data || []);
     }
 
@@ -83,7 +118,7 @@ export default async function handler(req, res) {
       .limit(50);
 
     if (error) {
-      console.error('Supabase error:', error);
+      console.error('Supabase error (popular airports):', error);
       return res.status(500).json({
         error: 'Database error',
         message: error.message
@@ -93,9 +128,9 @@ export default async function handler(req, res) {
     return res.status(200).json(data || []);
 
   } catch (error) {
-    console.error('Database error:', error);
+    console.error('Unexpected error:', error);
     return res.status(500).json({
-      error: 'Database error',
+      error: 'Unexpected error',
       message: error.message
     });
   }
