@@ -79,41 +79,87 @@ export default async function handler(req, res) {
 
     // If searching by name/code (autocomplete)
     if (search) {
-      const searchTerm = search.trim();
+      const searchTerm = search.trim().toUpperCase();
 
       if (searchTerm.length < 2) {
         return res.status(200).json([]);
       }
 
-      // Fetch all airports and filter in JavaScript (simple but works)
-      const { data, error } = await supabaseClient
-        .from('airports')
-        .select('iata, icao, name, city, country, latitude, longitude')
-        .limit(1000);
+      // Search across multiple fields using separate queries and combine
+      const promises = [
+        // Search IATA codes
+        supabaseClient
+          .from('airports')
+          .select('iata, icao, name, city, country, latitude, longitude')
+          .ilike('iata', `${searchTerm}%`)
+          .limit(10),
 
-      if (error) {
-        console.error('Supabase search error:', error);
+        // Search ICAO codes
+        supabaseClient
+          .from('airports')
+          .select('iata, icao, name, city, country, latitude, longitude')
+          .ilike('icao', `${searchTerm}%`)
+          .limit(10),
+
+        // Search airport names
+        supabaseClient
+          .from('airports')
+          .select('iata, icao, name, city, country, latitude, longitude')
+          .ilike('name', `%${searchTerm}%`)
+          .limit(10),
+
+        // Search city names
+        supabaseClient
+          .from('airports')
+          .select('iata, icao, name, city, country, latitude, longitude')
+          .ilike('city', `%${searchTerm}%`)
+          .limit(10),
+      ];
+
+      const results = await Promise.all(promises);
+
+      // Check for errors
+      const errors = results.filter(r => r.error);
+      if (errors.length > 0) {
+        console.error('Supabase search errors:', errors);
         return res.status(500).json({
           error: 'Database error',
-          message: error.message
+          message: errors[0].error.message
         });
       }
 
-      // Filter results in JavaScript
-      const searchLower = searchTerm.toLowerCase();
-      const results = (data || [])
-        .filter(airport => {
-          return (
-            airport.iata?.toLowerCase().includes(searchLower) ||
-            airport.icao?.toLowerCase().includes(searchLower) ||
-            airport.name?.toLowerCase().includes(searchLower) ||
-            airport.city?.toLowerCase().includes(searchLower)
-          );
-        })
-        .slice(0, 20);
+      // Combine and deduplicate results
+      const allData = results.flatMap(r => r.data || []);
+      const uniqueAirports = Array.from(
+        new Map(
+          allData.map(airport => [
+            airport.iata || airport.icao,
+            airport
+          ])
+        ).values()
+      );
 
-      console.log('Search for', searchTerm, 'found', results.length, 'airports');
-      return res.status(200).json(results);
+      // Sort: prioritize exact matches, then by name
+      const sorted = uniqueAirports.sort((a, b) => {
+        const aCode = (a.iata || a.icao || '').toUpperCase();
+        const bCode = (b.iata || b.icao || '').toUpperCase();
+
+        // Exact match on IATA/ICAO comes first
+        if (aCode === searchTerm && bCode !== searchTerm) return -1;
+        if (bCode === searchTerm && aCode !== searchTerm) return 1;
+
+        // Starts with search term comes next
+        if (aCode.startsWith(searchTerm) && !bCode.startsWith(searchTerm)) return -1;
+        if (bCode.startsWith(searchTerm) && !aCode.startsWith(searchTerm)) return 1;
+
+        // Otherwise sort by name
+        return (a.name || '').localeCompare(b.name || '');
+      });
+
+      const limited = sorted.slice(0, 20);
+
+      console.log('Search for', searchTerm, 'found', limited.length, 'airports');
+      return res.status(200).json(limited);
     }
 
     // Return popular airports if no search term
