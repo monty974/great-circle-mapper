@@ -143,9 +143,8 @@ export function generateGreatCirclePath(lat1, lon1, lat2, lon2, numPoints = 100)
     const fraction = i / numPoints;
     const point = intermediatePoint(lat1, lon1, lat2, adjustedLon2, fraction);
 
-    // Normalize the output longitude
-    const normalizedLon = normalizeLongitude(point.lon);
-    points.push([point.lat, normalizedLon]);
+    // Don't normalize - keep coordinates continuous across dateline for Mapbox
+    points.push([point.lat, point.lon]);
   }
 
   return points;

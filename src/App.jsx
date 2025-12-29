@@ -164,12 +164,71 @@ function App() {
 
   const calculateAllRoutes = () => {
     // Calculate all routes that have at least 2 valid waypoints
-    routes.forEach(route => {
+    const speedValue = parseFloat(speed);
+
+    setRoutes(routes.map(route => {
       const validWaypoints = route.waypoints.filter(w => w && w.lat && w.lon);
-      if (validWaypoints.length >= 2) {
-        calculateRoute(route.id);
+
+      if (validWaypoints.length < 2) {
+        return route; // Skip routes without enough waypoints
       }
-    });
+
+      let totalDistance = 0;
+      const paths = [];
+      const segments = [];
+
+      // Calculate each leg
+      for (let i = 0; i < validWaypoints.length - 1; i++) {
+        const from = validWaypoints[i];
+        const to = validWaypoints[i + 1];
+
+        const distance = calculateDistance(
+          parseFloat(from.lat),
+          parseFloat(from.lon),
+          parseFloat(to.lat),
+          parseFloat(to.lon)
+        );
+
+        const bearing = calculateBearing(
+          parseFloat(from.lat),
+          parseFloat(from.lon),
+          parseFloat(to.lat),
+          parseFloat(to.lon)
+        );
+
+        const path = generateGreatCirclePath(
+          parseFloat(from.lat),
+          parseFloat(from.lon),
+          parseFloat(to.lat),
+          parseFloat(to.lon),
+          100
+        );
+
+        totalDistance += distance;
+        paths.push(path);
+
+        segments.push({
+          from: from.code || from.name,
+          to: to.code || to.name,
+          distance: formatDistance(distance),
+          bearing: formatBearing(bearing)
+        });
+      }
+
+      const distances = formatDistance(totalDistance);
+      const travelTime = formatTravelTime(totalDistance, speedValue);
+
+      return {
+        ...route,
+        results: {
+          distance: distances,
+          travelTime,
+          segments,
+          totalDistance
+        },
+        paths
+      };
+    }));
   };
 
   const handleClear = () => {
