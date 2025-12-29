@@ -51,8 +51,8 @@ export default function AirportSearch({ label, value, onChange, placeholder }) {
     onChange({
       lat: airport.latitude,
       lon: airport.longitude,
-      name: `${airport.name} (${airport.iata_code || airport.icao_code})`,
-      code: airport.iata_code || airport.icao_code,
+      name: `${airport.name} (${airport.iata || airport.icao})`,
+      code: airport.iata || airport.icao,
       city: airport.city,
       country: airport.country
     });
@@ -89,12 +89,12 @@ export default function AirportSearch({ label, value, onChange, placeholder }) {
         <div className="airport-dropdown">
           {results.map((airport) => (
             <div
-              key={airport.iata_code || airport.icao_code}
+              key={airport.iata || airport.icao}
               className="airport-item"
               onClick={() => handleSelect(airport)}
             >
               <div className="airport-code">
-                {airport.iata_code || airport.icao_code}
+                {airport.iata || airport.icao}
               </div>
               <div className="airport-details">
                 <div className="airport-name">{airport.name}</div>

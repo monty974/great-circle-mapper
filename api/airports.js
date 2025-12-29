@@ -1,17 +1,16 @@
-import pkg from 'pg';
-const { Pool } = pkg;
+import { createClient } from '@supabase/supabase-js';
 
-// Create a connection pool
-let pool;
+// Create Supabase client
+const supabaseUrl = process.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY;
 
-function getPool() {
-  if (!pool) {
-    pool = new Pool({
-      connectionString: process.env.DATABASE_URL,
-      ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
-    });
+let supabase;
+
+function getSupabase() {
+  if (!supabase) {
+    supabase = createClient(supabaseUrl, supabaseAnonKey);
   }
-  return pool;
+  return supabase;
 }
 
 export default async function handler(req, res) {
@@ -33,74 +32,61 @@ export default async function handler(req, res) {
   const { search, code } = req.query;
 
   try {
-    const dbPool = getPool();
+    const supabaseClient = getSupabase();
 
     // If searching by specific airport code
     if (code) {
-      const result = await dbPool.query(
-        `SELECT * FROM airports
-         WHERE UPPER(iata_code) = UPPER($1) OR UPPER(icao_code) = UPPER($1)
-         LIMIT 1`,
-        [code]
-      );
+      const { data, error } = await supabaseClient
+        .from('airports')
+        .select('*')
+        .or(`iata.ilike.${code},icao.ilike.${code}`)
+        .limit(1)
+        .single();
 
-      if (result.rows.length === 0) {
+      if (error || !data) {
         return res.status(404).json({ error: 'Airport not found' });
       }
 
-      return res.status(200).json(result.rows[0]);
+      return res.status(200).json(data);
     }
 
     // If searching by name/code (autocomplete)
     if (search) {
-      const searchTerm = `%${search}%`;
-      const result = await dbPool.query(
-        `SELECT
-          iata_code,
-          icao_code,
-          name,
-          city,
-          country,
-          latitude,
-          longitude
-         FROM airports
-         WHERE
-          UPPER(iata_code) LIKE UPPER($1) OR
-          UPPER(icao_code) LIKE UPPER($1) OR
-          UPPER(name) LIKE UPPER($1) OR
-          UPPER(city) LIKE UPPER($1)
-         ORDER BY
-          CASE
-            WHEN UPPER(iata_code) = UPPER($2) THEN 1
-            WHEN UPPER(icao_code) = UPPER($2) THEN 2
-            WHEN UPPER(iata_code) LIKE UPPER($1) THEN 3
-            WHEN UPPER(name) LIKE UPPER($1) THEN 4
-            ELSE 5
-          END
-         LIMIT 20`,
-        [searchTerm, search]
-      );
+      const { data, error } = await supabaseClient
+        .from('airports')
+        .select('iata, icao, name, city, country, latitude, longitude')
+        .or(`iata.ilike.%${search}%,icao.ilike.%${search}%,name.ilike.%${search}%,city.ilike.%${search}%`)
+        .order('name')
+        .limit(20);
 
-      return res.status(200).json(result.rows);
+      if (error) {
+        console.error('Supabase error:', error);
+        return res.status(500).json({
+          error: 'Database error',
+          message: error.message
+        });
+      }
+
+      return res.status(200).json(data || []);
     }
 
     // Return popular airports if no search term
-    const result = await dbPool.query(
-      `SELECT
-        iata_code,
-        icao_code,
-        name,
-        city,
-        country,
-        latitude,
-        longitude
-       FROM airports
-       WHERE iata_code IS NOT NULL
-       ORDER BY name
-       LIMIT 50`
-    );
+    const { data, error } = await supabaseClient
+      .from('airports')
+      .select('iata, icao, name, city, country, latitude, longitude')
+      .not('iata', 'is', null)
+      .order('name')
+      .limit(50);
 
-    return res.status(200).json(result.rows);
+    if (error) {
+      console.error('Supabase error:', error);
+      return res.status(500).json({
+        error: 'Database error',
+        message: error.message
+      });
+    }
+
+    return res.status(200).json(data || []);
 
   } catch (error) {
     console.error('Database error:', error);

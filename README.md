@@ -1,8 +1,8 @@
 # Great Circle Calculator
 
-A web application for calculating the shortest path between two airports using the great circle route. The app features an interactive Mapbox map, airport search from a PostgreSQL database, and calculates distance and travel time.
+A web application for calculating the shortest path between two airports using the great circle route. The app features an interactive Mapbox map, airport search from a Supabase database, and calculates distance and travel time.
 
-![Great Circle Calculator](https://img.shields.io/badge/React-18.2.0-blue) ![Vite](https://img.shields.io/badge/Vite-5.0-646CFF) ![Mapbox](https://img.shields.io/badge/Mapbox-GL_JS-green)
+![Great Circle Calculator](https://img.shields.io/badge/React-18.2.0-blue) ![Vite](https://img.shields.io/badge/Vite-5.0-646CFF) ![Mapbox](https://img.shields.io/badge/Mapbox-GL_JS-green) ![Supabase](https://img.shields.io/badge/Supabase-Powered-3ECF8E)
 
 ## Features
 
@@ -13,14 +13,14 @@ A web application for calculating the shortest path between two airports using t
 - **Initial Bearing**: Display the initial compass direction
 - **Great Circle Path**: Visualize the shortest route on the map
 - **Responsive Design**: Works on desktop and mobile devices
-- **Database Integration**: PostgreSQL database with airport data
+- **Supabase Integration**: Fast, real-time airport database
 
 ## Technologies Used
 
 - **React 18**: Modern UI library
 - **Vite**: Fast build tool and development server
 - **Mapbox GL JS**: Interactive mapping library
-- **PostgreSQL**: Airport database
+- **Supabase**: Backend as a Service with PostgreSQL
 - **Vercel Serverless Functions**: Backend API
 - **react-map-gl**: React wrapper for Mapbox GL JS
 
@@ -28,17 +28,17 @@ A web application for calculating the shortest path between two airports using t
 
 - Node.js 16+ and npm
 - Mapbox API key ([Get one free](https://account.mapbox.com/))
-- PostgreSQL database with airport data
+- Supabase account and project ([Get started free](https://supabase.com/))
 
 ## Database Schema
 
-Your PostgreSQL database should have an `airports` table with at least the following columns:
+Your Supabase database should have an `airports` table with the following columns:
 
 ```sql
 CREATE TABLE airports (
   id SERIAL PRIMARY KEY,
-  iata_code VARCHAR(3),
-  icao_code VARCHAR(4),
+  iata VARCHAR(3),
+  icao VARCHAR(4),
   name VARCHAR(255),
   city VARCHAR(255),
   country VARCHAR(255),
@@ -46,6 +46,8 @@ CREATE TABLE airports (
   longitude DECIMAL(11, 8)
 );
 ```
+
+**Column names must match exactly**: `iata`, `icao`, `name`, `city`, `country`, `latitude`, `longitude`
 
 ## Setup Instructions
 
@@ -65,8 +67,9 @@ Create a `.env.local` file in the root directory:
 # Mapbox API Key
 VITE_MAPBOX_TOKEN=your_mapbox_access_token_here
 
-# Database Configuration
-DATABASE_URL=postgresql://username:password@host:port/database
+# Supabase Configuration
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key_here
 ```
 
 **Getting a Mapbox Token:**
@@ -75,17 +78,45 @@ DATABASE_URL=postgresql://username:password@host:port/database
 3. Copy your "Default public token" or create a new one
 4. Add it to `.env.local` as `VITE_MAPBOX_TOKEN`
 
-**Database URL Format:**
-```
-postgresql://username:password@hostname:5432/database_name
+**Getting Supabase Credentials:**
+1. Sign up at [supabase.com](https://supabase.com/)
+2. Create a new project
+3. Go to **Settings** → **API**
+4. Copy the **Project URL** → Add to `.env.local` as `VITE_SUPABASE_URL`
+5. Copy the **anon/public key** → Add to `.env.local` as `VITE_SUPABASE_ANON_KEY`
+
+### 3. Set Up Supabase Database
+
+1. In your Supabase project, go to the **SQL Editor**
+2. Run the following SQL to create the airports table:
+
+```sql
+CREATE TABLE airports (
+  id SERIAL PRIMARY KEY,
+  iata VARCHAR(3),
+  icao VARCHAR(4),
+  name VARCHAR(255),
+  city VARCHAR(255),
+  country VARCHAR(255),
+  latitude DECIMAL(10, 8),
+  longitude DECIMAL(11, 8)
+);
+
+-- Add indexes for better search performance
+CREATE INDEX idx_airports_iata ON airports(iata);
+CREATE INDEX idx_airports_icao ON airports(icao);
+CREATE INDEX idx_airports_name ON airports(name);
+CREATE INDEX idx_airports_city ON airports(city);
 ```
 
-For SSL connections (common in production):
-```
-postgresql://username:password@hostname:5432/database_name?sslmode=require
-```
+3. Import your airport data (CSV, JSON, or manual insert)
 
-### 3. Development
+**Example import from CSV:**
+- Go to **Table Editor** → **airports**
+- Click **Insert** → **Import data via spreadsheet**
+- Upload your CSV file with columns: `iata`, `icao`, `name`, `city`, `country`, `latitude`, `longitude`
+
+### 4. Development
 
 Start the development server:
 
@@ -95,7 +126,7 @@ npm run dev
 
 Open your browser to `http://localhost:5173`
 
-### 4. Building for Production
+### 5. Building for Production
 
 ```bash
 npm run build
@@ -119,7 +150,8 @@ vercel
 
 3. Add environment variables in Vercel dashboard:
    - `VITE_MAPBOX_TOKEN`: Your Mapbox API token
-   - `DATABASE_URL`: Your PostgreSQL connection string
+   - `VITE_SUPABASE_URL`: Your Supabase project URL
+   - `VITE_SUPABASE_ANON_KEY`: Your Supabase anon key
 
 ### Option 2: Deploy via Vercel Dashboard
 
@@ -129,10 +161,11 @@ vercel
 4. Import your GitHub repository
 5. Add environment variables:
    - `VITE_MAPBOX_TOKEN`
-   - `DATABASE_URL`
+   - `VITE_SUPABASE_URL`
+   - `VITE_SUPABASE_ANON_KEY`
 6. Click "Deploy"
 
-**Important**: Make sure to add both environment variables in the Vercel project settings before deploying.
+**Important**: Make sure to add all three environment variables in the Vercel project settings before deploying.
 
 ## API Endpoints
 
@@ -140,7 +173,7 @@ The app includes Vercel serverless functions in the `/api` directory:
 
 ### GET /api/airports
 
-Search airports from the database.
+Search airports from the Supabase database.
 
 **Query Parameters:**
 - `search` - Search by airport code, name, or city (returns up to 20 results)
@@ -157,8 +190,8 @@ Search airports from the database.
 ```json
 [
   {
-    "iata_code": "JFK",
-    "icao_code": "KJFK",
+    "iata": "JFK",
+    "icao": "KJFK",
     "name": "John F. Kennedy International Airport",
     "city": "New York",
     "country": "United States",
@@ -219,7 +252,7 @@ The great circle path is generated by calculating intermediate points along the 
 ```
 great-circle-mapper/
 ├── api/
-│   └── airports.js          # Vercel serverless function for airport search
+│   └── airports.js          # Vercel serverless function (Supabase)
 ├── public/
 ├── src/
 │   ├── components/
@@ -242,7 +275,8 @@ great-circle-mapper/
 | Variable | Description | Required | Example |
 |----------|-------------|----------|---------|
 | `VITE_MAPBOX_TOKEN` | Mapbox GL JS access token | Yes | `pk.eyJ1...` |
-| `DATABASE_URL` | PostgreSQL connection string | Yes | `postgresql://user:pass@host:5432/db` |
+| `VITE_SUPABASE_URL` | Supabase project URL | Yes | `https://xyz.supabase.co` |
+| `VITE_SUPABASE_ANON_KEY` | Supabase anon/public key | Yes | `eyJhbGci...` |
 
 ## Troubleshooting
 
@@ -251,15 +285,28 @@ great-circle-mapper/
 - Verify your Mapbox token is valid at [mapbox.com/account](https://account.mapbox.com/)
 
 ### Airport search not working
-- Verify `DATABASE_URL` is correct
-- Check that your database is accessible
-- Ensure the `airports` table exists with the correct schema
+- Verify `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` are correct
+- Check that your Supabase project is active
+- Ensure the `airports` table exists with the correct column names
+- Verify you have Row Level Security (RLS) policies set up if enabled
 - Check browser console for API errors
+
+### Supabase RLS Issues
+If you have Row Level Security enabled, you need to add a policy:
+
+```sql
+-- Allow public read access to airports table
+CREATE POLICY "Allow public read access"
+ON airports
+FOR SELECT
+TO anon
+USING (true);
+```
 
 ### Build fails
 - Run `npm install` to ensure all dependencies are installed
 - Check Node.js version (should be 16+)
-- Clear cache: `rm -rf node_modules .next dist && npm install`
+- Clear cache: `rm -rf node_modules dist && npm install`
 
 ## Contributing
 
@@ -272,6 +319,6 @@ MIT License - feel free to use this project for any purpose.
 ## Acknowledgments
 
 - [Mapbox](https://www.mapbox.com/) for the mapping platform
+- [Supabase](https://supabase.com/) for the database backend
 - [react-map-gl](https://visgl.github.io/react-map-gl/) for React integration
 - Great circle calculations based on the Haversine formula
-- Airport data from your PostgreSQL database
