@@ -162,6 +162,16 @@ function App() {
     }));
   };
 
+  const calculateAllRoutes = () => {
+    // Calculate all routes that have at least 2 valid waypoints
+    routes.forEach(route => {
+      const validWaypoints = route.waypoints.filter(w => w && w.lat && w.lon);
+      if (validWaypoints.length >= 2) {
+        calculateRoute(route.id);
+      }
+    });
+  };
+
   const handleClear = () => {
     setRoutes(routes.map(route => ({
       ...route,
@@ -268,9 +278,9 @@ function App() {
 
               <button
                 className="btn-primary"
-                onClick={() => calculateRoute(activeRoute.id)}
+                onClick={calculateAllRoutes}
               >
-                Calculate Route
+                {routes.length > 1 ? 'Calculate All Routes' : 'Calculate Route'}
               </button>
               <button className="btn-secondary" onClick={handleClear}>
                 Clear All
