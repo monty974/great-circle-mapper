@@ -4,6 +4,38 @@ import 'mapbox-gl/dist/mapbox-gl.css';
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
+// Split a path into segments when it crosses the dateline
+function splitPathAtDateline(path) {
+  if (!path || path.length === 0) return [];
+
+  const segments = [];
+  let currentSegment = [path[0]];
+
+  for (let i = 1; i < path.length; i++) {
+    const [prevLat, prevLon] = path[i - 1];
+    const [currLat, currLon] = path[i];
+
+    // Check if we crossed the dateline (longitude jump > 180°)
+    const lonDiff = Math.abs(currLon - prevLon);
+
+    if (lonDiff > 180) {
+      // Finish current segment
+      segments.push(currentSegment);
+      // Start new segment
+      currentSegment = [[currLat, currLon]];
+    } else {
+      currentSegment.push([currLat, currLon]);
+    }
+  }
+
+  // Add the last segment
+  if (currentSegment.length > 0) {
+    segments.push(currentSegment);
+  }
+
+  return segments;
+}
+
 export default function MapComponent({ routes = [], projection = 'globe' }) {
   const mapRef = useRef();
   const [viewState, setViewState] = useState({
@@ -101,34 +133,39 @@ export default function MapComponent({ routes = [], projection = 'globe' }) {
           {route.paths?.map((path, pathIndex) => {
             if (!path || path.length === 0) return null;
 
-            const pathGeoJSON = {
-              type: 'Feature',
-              geometry: {
-                type: 'LineString',
-                coordinates: path.map(([lat, lon]) => [lon, lat])
-              }
-            };
+            // Split path into segments at dateline crossings
+            const segments = splitPathAtDateline(path);
 
-            const lineLayer = {
-              id: `route-${route.id}-path-${pathIndex}`,
-              type: 'line',
-              paint: {
-                'line-color': route.color,
-                'line-width': 3,
-                'line-opacity': 0.8
-              }
-            };
+            return segments.map((segment, segmentIndex) => {
+              const pathGeoJSON = {
+                type: 'Feature',
+                geometry: {
+                  type: 'LineString',
+                  coordinates: segment.map(([lat, lon]) => [lon, lat])
+                }
+              };
 
-            return (
-              <Source
-                key={`${route.id}-${pathIndex}`}
-                id={`route-${route.id}-path-${pathIndex}`}
-                type="geojson"
-                data={pathGeoJSON}
-              >
-                <Layer {...lineLayer} />
-              </Source>
-            );
+              const lineLayer = {
+                id: `route-${route.id}-path-${pathIndex}-seg-${segmentIndex}`,
+                type: 'line',
+                paint: {
+                  'line-color': route.color,
+                  'line-width': 3,
+                  'line-opacity': 0.8
+                }
+              };
+
+              return (
+                <Source
+                  key={`${route.id}-${pathIndex}-${segmentIndex}`}
+                  id={`route-${route.id}-path-${pathIndex}-seg-${segmentIndex}`}
+                  type="geojson"
+                  data={pathGeoJSON}
+                >
+                  <Layer {...lineLayer} />
+                </Source>
+              );
+            });
           })}
         </div>
       ))}
