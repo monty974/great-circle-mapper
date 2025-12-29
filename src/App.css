@@ -33,10 +33,10 @@ body {
 }
 
 .main-content {
-  max-width: 1400px;
+  max-width: 2400px;
   margin: 0 auto;
   display: grid;
-  grid-template-columns: 400px 1fr;
+  grid-template-columns: minmax(350px, 450px) 1fr;
   gap: 20px;
   min-height: calc(100vh - 200px);
 }

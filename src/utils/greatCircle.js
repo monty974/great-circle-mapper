@@ -103,6 +103,17 @@ export function intermediatePoint(lat1, lon1, lat2, lon2, fraction) {
 }
 
 /**
+ * Normalize longitude to -180 to 180 range
+ * @param {number} lon - Longitude in degrees
+ * @returns {number} Normalized longitude
+ */
+function normalizeLongitude(lon) {
+  while (lon > 180) lon -= 360;
+  while (lon < -180) lon += 360;
+  return lon;
+}
+
+/**
  * Generate points along the great circle path
  * @param {number} lat1 - Latitude of point 1 in degrees
  * @param {number} lon1 - Longitude of point 1 in degrees
@@ -114,10 +125,27 @@ export function intermediatePoint(lat1, lon1, lat2, lon2, fraction) {
 export function generateGreatCirclePath(lat1, lon1, lat2, lon2, numPoints = 100) {
   const points = [];
 
+  // Normalize input longitudes
+  lon1 = normalizeLongitude(lon1);
+  lon2 = normalizeLongitude(lon2);
+
+  // Adjust lon2 if crossing dateline to ensure shortest path
+  let adjustedLon2 = lon2;
+  const lonDiff = lon2 - lon1;
+
+  if (lonDiff > 180) {
+    adjustedLon2 = lon2 - 360;
+  } else if (lonDiff < -180) {
+    adjustedLon2 = lon2 + 360;
+  }
+
   for (let i = 0; i <= numPoints; i++) {
     const fraction = i / numPoints;
-    const point = intermediatePoint(lat1, lon1, lat2, lon2, fraction);
-    points.push([point.lat, point.lon]);
+    const point = intermediatePoint(lat1, lon1, lat2, adjustedLon2, fraction);
+
+    // Normalize the output longitude
+    const normalizedLon = normalizeLongitude(point.lon);
+    points.push([point.lat, normalizedLon]);
   }
 
   return points;
