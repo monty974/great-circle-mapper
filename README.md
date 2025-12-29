@@ -148,10 +148,16 @@ npm install -g vercel
 vercel
 ```
 
-3. Add environment variables in Vercel dashboard:
+3. Add environment variables in Vercel dashboard (go to Settings → Environment Variables):
+
+   **Frontend variables (VITE_ prefix):**
    - `VITE_MAPBOX_TOKEN`: Your Mapbox API token
    - `VITE_SUPABASE_URL`: Your Supabase project URL
    - `VITE_SUPABASE_ANON_KEY`: Your Supabase anon key
+
+   **Backend variables (for API routes - NO prefix):**
+   - `SUPABASE_URL`: Your Supabase project URL (same value as above)
+   - `SUPABASE_ANON_KEY`: Your Supabase anon key (same value as above)
 
 ### Option 2: Deploy via Vercel Dashboard
 
@@ -159,13 +165,24 @@ vercel
 2. Go to [vercel.com](https://vercel.com) and sign in
 3. Click "New Project"
 4. Import your GitHub repository
-5. Add environment variables:
-   - `VITE_MAPBOX_TOKEN`
-   - `VITE_SUPABASE_URL`
-   - `VITE_SUPABASE_ANON_KEY`
+5. Add environment variables (Settings → Environment Variables):
+
+   **Frontend variables:**
+   - `VITE_MAPBOX_TOKEN` = Your Mapbox token
+   - `VITE_SUPABASE_URL` = `https://hwtkuhqvusahutheitvp.supabase.co`
+   - `VITE_SUPABASE_ANON_KEY` = Your Supabase anon key
+
+   **Backend variables:**
+   - `SUPABASE_URL` = `https://hwtkuhqvusahutheitvp.supabase.co`
+   - `SUPABASE_ANON_KEY` = Your Supabase anon key
+
 6. Click "Deploy"
 
-**Important**: Make sure to add all three environment variables in the Vercel project settings before deploying.
+**Important**: You need to add **5 environment variables total** in Vercel:
+- 3 with `VITE_` prefix (for frontend)
+- 2 without prefix (for serverless API)
+
+The Supabase URL and key are duplicated because Vite only exposes `VITE_` prefixed variables to the frontend, while serverless functions need the non-prefixed versions.
 
 ## API Endpoints
 
@@ -272,11 +289,23 @@ great-circle-mapper/
 
 ## Environment Variables Reference
 
+### Local Development (.env.local)
+
 | Variable | Description | Required | Example |
 |----------|-------------|----------|---------|
 | `VITE_MAPBOX_TOKEN` | Mapbox GL JS access token | Yes | `pk.eyJ1...` |
 | `VITE_SUPABASE_URL` | Supabase project URL | Yes | `https://xyz.supabase.co` |
 | `VITE_SUPABASE_ANON_KEY` | Supabase anon/public key | Yes | `eyJhbGci...` |
+
+### Vercel Deployment (5 variables required)
+
+| Variable | Description | Used By | Example |
+|----------|-------------|---------|---------|
+| `VITE_MAPBOX_TOKEN` | Mapbox GL JS access token | Frontend | `pk.eyJ1...` |
+| `VITE_SUPABASE_URL` | Supabase project URL | Frontend | `https://xyz.supabase.co` |
+| `VITE_SUPABASE_ANON_KEY` | Supabase anon/public key | Frontend | `eyJhbGci...` |
+| `SUPABASE_URL` | Supabase project URL (duplicate) | API Routes | `https://xyz.supabase.co` |
+| `SUPABASE_ANON_KEY` | Supabase anon key (duplicate) | API Routes | `eyJhbGci...` |
 
 ## Troubleshooting
 

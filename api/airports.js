@@ -1,13 +1,17 @@
 import { createClient } from '@supabase/supabase-js';
 
 // Create Supabase client
-const supabaseUrl = process.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY;
+// For Vercel serverless functions, use non-VITE prefixed env vars
+const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
 
 let supabase;
 
 function getSupabase() {
   if (!supabase) {
+    if (!supabaseUrl || !supabaseAnonKey) {
+      throw new Error('Missing Supabase credentials. Please set SUPABASE_URL and SUPABASE_ANON_KEY in Vercel environment variables.');
+    }
     supabase = createClient(supabaseUrl, supabaseAnonKey);
   }
   return supabase;
