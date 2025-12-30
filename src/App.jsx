@@ -275,13 +275,12 @@ function App() {
     }));
   };
 
-  const handleShare = () => {
+  const handleShare = async () => {
     const encoded = encodeRoutesToURL(routes, speed, projection, mapStyle, viewState);
     const url = `${window.location.origin}${window.location.pathname}?route=${encoded}`;
 
-    // Save to localStorage
+    // Save to Supabase
     const savedRoute = {
-      id: Date.now(),
       name: routes.map(r => {
         const waypoints = r.waypoints.filter(w => w && w.code);
         if (waypoints.length >= 2) {
@@ -290,14 +289,25 @@ function App() {
         return r.name;
       }).join(', '),
       url,
-      date: new Date().toISOString(),
-      routeCount: routes.filter(r => r.results).length
+      route_count: routes.filter(r => r.results).length
     };
 
-    const existing = JSON.parse(localStorage.getItem('savedRoutes') || '[]');
-    existing.unshift(savedRoute); // Add to beginning
-    localStorage.setItem('savedRoutes', JSON.stringify(existing.slice(0, 50))); // Keep last 50
-    setSavedRoutes(existing.slice(0, 50));
+    try {
+      const response = await fetch('/api/saved-routes', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(savedRoute)
+      });
+
+      if (response.ok) {
+        // Reload saved routes list
+        loadSavedRoutes();
+      }
+    } catch (error) {
+      console.error('Error saving route:', error);
+    }
 
     navigator.clipboard.writeText(url).then(() => {
       alert('Share link copied to clipboard and saved!');
@@ -416,10 +426,22 @@ function App() {
     }
   }, []); // Empty dependency array - only run on mount
 
-  // Load saved routes from localStorage on mount
+  // Load saved routes from Supabase
+  const loadSavedRoutes = async () => {
+    try {
+      const response = await fetch('/api/saved-routes');
+      if (response.ok) {
+        const data = await response.json();
+        setSavedRoutes(data);
+      }
+    } catch (error) {
+      console.error('Error loading saved routes:', error);
+    }
+  };
+
+  // Load saved routes on mount
   useEffect(() => {
-    const saved = JSON.parse(localStorage.getItem('savedRoutes') || '[]');
-    setSavedRoutes(saved);
+    loadSavedRoutes();
   }, []);
 
   const handleCopySavedRoute = (url) => {
@@ -430,10 +452,19 @@ function App() {
     });
   };
 
-  const handleDeleteSavedRoute = (id) => {
-    const updated = savedRoutes.filter(r => r.id !== id);
-    localStorage.setItem('savedRoutes', JSON.stringify(updated));
-    setSavedRoutes(updated);
+  const handleDeleteSavedRoute = async (id) => {
+    try {
+      const response = await fetch(`/api/saved-routes?id=${id}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        // Reload saved routes list
+        loadSavedRoutes();
+      }
+    } catch (error) {
+      console.error('Error deleting route:', error);
+    }
   };
 
   const handleClear = () => {
@@ -494,7 +525,7 @@ function App() {
                           {saved.name}
                         </h3>
                         <small style={{ color: '#666' }}>
-                          {new Date(saved.date).toLocaleString()} • {saved.routeCount} route{saved.routeCount !== 1 ? 's' : ''}
+                          {new Date(saved.created_at).toLocaleString()} • {saved.route_count} route{saved.route_count !== 1 ? 's' : ''}
                         </small>
                       </div>
                       <div style={{ display: 'flex', gap: '8px' }}>
