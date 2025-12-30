@@ -21,17 +21,28 @@ function splitPathAtDateline(path) {
 
     if (Math.abs(lonDiff) > 180) {
       // Calculate interpolated latitude at the dateline
-      const crossingFraction = (180 - Math.abs(prevLon)) / (Math.abs(lonDiff) - 360);
+      // Distance from current point to the boundary / total crossing distance
+      let crossingFraction;
+      if (lonDiff < 0) {
+        // Crossing from positive to negative (e.g., 178 to -172)
+        // Go: 178 → 180 → -180 → -172
+        crossingFraction = (180 - prevLon) / (360 - Math.abs(lonDiff));
+      } else {
+        // Crossing from negative to positive (e.g., -172 to 178)
+        // Go: -172 → -180 → 180 → 178
+        crossingFraction = (prevLon + 180) / (360 - Math.abs(lonDiff));
+      }
+
       const crossingLat = prevLat + (currLat - prevLat) * crossingFraction;
 
       // Determine which side of dateline we're crossing to/from
-      if (lonDiff > 0) {
-        // Crossing from negative to positive (west to east)
+      if (lonDiff < 0) {
+        // Crossing from positive to negative (east to west in value)
         currentSegment.push([crossingLat, 180]);
         segments.push(currentSegment);
         currentSegment = [[crossingLat, -180], [currLat, currLon]];
       } else {
-        // Crossing from positive to negative (east to west)
+        // Crossing from negative to positive (west to east in value)
         currentSegment.push([crossingLat, -180]);
         segments.push(currentSegment);
         currentSegment = [[crossingLat, 180], [currLat, currLon]];
@@ -79,19 +90,46 @@ export default function MapComponent({ routes = [], projection = 'globe' }) {
 
       if (allWaypoints.length > 1) {
         // Calculate bounds
-        const lons = allWaypoints.map(w => w[0]);
+        let lons = allWaypoints.map(w => w[0]);
         const lats = allWaypoints.map(w => w[1]);
 
-        const bounds = [
-          [Math.min(...lons), Math.min(...lats)],
-          [Math.max(...lons), Math.max(...lats)]
-        ];
+        // Check if route crosses dateline
+        const lonSpan = Math.max(...lons) - Math.min(...lons);
 
-        map.fitBounds(bounds, {
-          padding: 100,
-          duration: 1000,
-          maxZoom: 5 // Don't zoom in too close
-        });
+        if (lonSpan > 180) {
+          // Route crosses dateline - convert negative longitudes to 180-360 range
+          lons = lons.map(lon => lon < 0 ? lon + 360 : lon);
+
+          // Calculate center longitude in 0-360 range
+          const minLon = Math.min(...lons);
+          const maxLon = Math.max(...lons);
+          const centerLon = (minLon + maxLon) / 2;
+
+          // Convert back to -180 to 180 range
+          const normalizedCenterLon = centerLon > 180 ? centerLon - 360 : centerLon;
+
+          // Calculate latitude center
+          const centerLat = (Math.min(...lats) + Math.max(...lats)) / 2;
+
+          // Use flyTo for dateline-crossing routes instead of fitBounds
+          map.flyTo({
+            center: [normalizedCenterLon, centerLat],
+            zoom: 3,
+            duration: 1000
+          });
+        } else {
+          // Normal bounds calculation for routes that don't cross dateline
+          const bounds = [
+            [Math.min(...lons), Math.min(...lats)],
+            [Math.max(...lons), Math.max(...lats)]
+          ];
+
+          map.fitBounds(bounds, {
+            padding: 100,
+            duration: 1000,
+            maxZoom: 5
+          });
+        }
       }
     }
   }, [routes]);
