@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import Map from './components/Map';
 import AirportSearch from './components/AirportSearch';
+import AdminLogin from './components/AdminLogin';
 import {
   calculateDistance,
   calculateBearing,
@@ -71,6 +72,8 @@ function App() {
   });
   const [showSavedRoutes, setShowSavedRoutes] = useState(false);
   const [savedRoutes, setSavedRoutes] = useState([]);
+  const [adminUser, setAdminUser] = useState(null);
+  const [showLoginModal, setShowLoginModal] = useState(false);
 
   const activeRoute = routes.find(r => r.id === activeRouteId);
 
@@ -455,18 +458,72 @@ function App() {
 
   const handleDeleteSavedRoute = async (id) => {
     try {
+      const token = localStorage.getItem('admin_session');
+      if (!token) {
+        alert('You must be logged in as admin to delete routes');
+        return;
+      }
+
       const response = await fetch(`/api/saved-routes?id=${id}`, {
         method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
       });
+
+      if (response.status === 401) {
+        alert('Your session has expired. Please log in again.');
+        handleLogout();
+        return;
+      }
 
       if (response.ok) {
         // Reload saved routes list
         loadSavedRoutes();
+      } else {
+        const data = await response.json();
+        alert(`Failed to delete: ${data.error}`);
       }
     } catch (error) {
       console.error('Error deleting route:', error);
+      alert('Network error. Please try again.');
     }
   };
+
+  const handleLogin = (user) => {
+    setAdminUser(user);
+    setShowLoginModal(false);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('admin_session');
+    setAdminUser(null);
+  };
+
+  // Check if user is already logged in on mount
+  useEffect(() => {
+    const token = localStorage.getItem('admin_session');
+    if (token) {
+      // Verify token is still valid by making a test request
+      fetch('/api/saved-routes?id=test', {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      }).then(response => {
+        if (response.status === 401) {
+          // Token expired
+          localStorage.removeItem('admin_session');
+        } else {
+          // Token valid (even though we're not deleting anything)
+          setAdminUser({ email: 'admin' }); // Set a placeholder
+        }
+      }).catch(() => {
+        // Network error, keep token for now
+        setAdminUser({ email: 'admin' });
+      });
+    }
+  }, []);
 
   const handleClear = () => {
     setRoutes(routes.map(route => ({
@@ -482,21 +539,53 @@ function App() {
       <header className="header">
         <h1>Great Circle Calculator</h1>
         <p>Compare multi-leg flight routes</p>
-        <button
-          onClick={() => setShowSavedRoutes(!showSavedRoutes)}
-          style={{
-            marginTop: '15px',
-            padding: '10px 20px',
-            background: 'white',
-            border: 'none',
-            borderRadius: '6px',
-            cursor: 'pointer',
-            fontWeight: '600',
-            fontSize: '0.9em'
-          }}
-        >
-          {showSavedRoutes ? '← Back to Calculator' : '📁 Saved Routes' + (savedRoutes.length > 0 ? ` (${savedRoutes.length})` : '')}
-        </button>
+        <div style={{ display: 'flex', gap: '10px', marginTop: '15px', flexWrap: 'wrap', justifyContent: 'center' }}>
+          <button
+            onClick={() => setShowSavedRoutes(!showSavedRoutes)}
+            style={{
+              padding: '10px 20px',
+              background: 'white',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontWeight: '600',
+              fontSize: '0.9em'
+            }}
+          >
+            {showSavedRoutes ? '← Back to Calculator' : '📁 Saved Routes' + (savedRoutes.length > 0 ? ` (${savedRoutes.length})` : '')}
+          </button>
+          {adminUser ? (
+            <button
+              onClick={handleLogout}
+              style={{
+                padding: '10px 20px',
+                background: '#fee',
+                border: '1px solid #fcc',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontWeight: '600',
+                fontSize: '0.9em'
+              }}
+            >
+              🔓 Logout Admin
+            </button>
+          ) : (
+            <button
+              onClick={() => setShowLoginModal(true)}
+              style={{
+                padding: '10px 20px',
+                background: '#efe',
+                border: '1px solid #cfc',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontWeight: '600',
+                fontSize: '0.9em'
+              }}
+            >
+              🔐 Admin Login
+            </button>
+          )}
+        </div>
       </header>
 
       {showSavedRoutes ? (
@@ -544,13 +633,15 @@ function App() {
                         >
                           📋 Copy
                         </button>
-                        <button
-                          onClick={() => handleDeleteSavedRoute(saved.id)}
-                          className="btn-secondary"
-                          style={{ width: 'auto', padding: '8px 16px', margin: 0, background: '#fee', borderColor: '#fcc' }}
-                        >
-                          🗑️
-                        </button>
+                        {adminUser && (
+                          <button
+                            onClick={() => handleDeleteSavedRoute(saved.id)}
+                            className="btn-secondary"
+                            style={{ width: 'auto', padding: '8px 16px', margin: 0, background: '#fee', borderColor: '#fcc' }}
+                          >
+                            🗑️
+                          </button>
+                        )}
                       </div>
                     </div>
                     <div style={{ fontSize: '0.85em', color: '#888', wordBreak: 'break-all' }}>
@@ -789,6 +880,13 @@ function App() {
           </div>
         </div>
         </div>
+      )}
+
+      {showLoginModal && (
+        <AdminLogin
+          onLogin={handleLogin}
+          onClose={() => setShowLoginModal(false)}
+        />
       )}
     </div>
   );

@@ -79,7 +79,7 @@ export default async function handler(req, res) {
       return res.status(201).json(data);
     }
 
-    // DELETE - Delete a saved route by ID
+    // DELETE - Delete a saved route by ID (requires authentication)
     if (req.method === 'DELETE') {
       const { id } = req.query;
 
@@ -87,6 +87,22 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Missing route ID' });
       }
 
+      // Check for authentication token
+      const authHeader = req.headers.authorization;
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({ error: 'Authentication required' });
+      }
+
+      const token = authHeader.substring(7);
+
+      // Verify the token with Supabase
+      const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token);
+
+      if (authError || !user) {
+        return res.status(401).json({ error: 'Invalid or expired token' });
+      }
+
+      // User is authenticated, proceed with delete
       const { error } = await supabaseClient
         .from('saved_routes')
         .delete()
