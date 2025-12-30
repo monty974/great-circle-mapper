@@ -57,7 +57,6 @@ function App() {
   const [projection, setProjection] = useState('globe');
   const [mapStyle, setMapStyle] = useState('streets-v12');
   const [activeRouteId, setActiveRouteId] = useState(1);
-  const [mapKey, setMapKey] = useState(0); // Force map re-render when needed
 
   const activeRoute = routes.find(r => r.id === activeRouteId);
 
@@ -363,9 +362,6 @@ function App() {
         setRoutes(loadedRoutes);
         setSpeed(speedValue);
         setActiveRouteId(loadedRoutes[0]?.id || 1);
-
-        // Force map to re-center on loaded routes
-        setTimeout(() => setMapKey(prev => prev + 1), 200);
       }
     }
   }, []); // Empty dependency array - only run on mount
@@ -565,7 +561,6 @@ function App() {
 
         <div className="map-panel">
           <Map
-            key={mapKey}
             routes={routes.filter(r => r.paths.length > 0)}
             projection={projection}
             mapStyle={mapStyle}

@@ -67,16 +67,21 @@ export default function MapComponent({ routes = [], projection = 'globe', mapSty
     latitude: 20,
     zoom: 2
   });
+  const [mapLoaded, setMapLoaded] = useState(false);
 
-  // Fit bounds when routes are calculated
+  // Fit bounds when routes are calculated and map is loaded
   useEffect(() => {
-    if (routes.length > 0 && mapRef.current) {
-      // Check if any routes have been calculated (have results)
-      const calculatedRoutes = routes.filter(r => r.results && r.paths && r.paths.length > 0);
+    if (!mapLoaded || routes.length === 0 || !mapRef.current) return;
 
-      if (calculatedRoutes.length === 0) return;
+    // Check if any routes have been calculated (have results)
+    const calculatedRoutes = routes.filter(r => r.results && r.paths && r.paths.length > 0);
 
-      const map = mapRef.current.getMap();
+    if (calculatedRoutes.length === 0) return;
+
+    // Small delay to ensure map is fully rendered
+    const timer = setTimeout(() => {
+      const map = mapRef.current?.getMap();
+      if (!map) return;
 
       // Collect all waypoints from calculated routes only
       const allWaypoints = [];
@@ -131,14 +136,17 @@ export default function MapComponent({ routes = [], projection = 'globe', mapSty
           });
         }
       }
-    }
-  }, [routes]);
+    }, 300); // 300ms delay to ensure map is ready
+
+    return () => clearTimeout(timer);
+  }, [routes, mapLoaded]);
 
   return (
     <Map
       ref={mapRef}
       {...viewState}
       onMove={evt => setViewState(evt.viewState)}
+      onLoad={() => setMapLoaded(true)}
       mapboxAccessToken={MAPBOX_TOKEN}
       mapStyle={mapStyle.startsWith('mapbox://styles/') ? mapStyle : `mapbox://styles/mapbox/${mapStyle}`}
       projection={projection}
