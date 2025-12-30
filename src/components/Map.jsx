@@ -140,7 +140,7 @@ export default function MapComponent({ routes = [], projection = 'globe', mapSty
       {...viewState}
       onMove={evt => setViewState(evt.viewState)}
       mapboxAccessToken={MAPBOX_TOKEN}
-      mapStyle={`mapbox://styles/mapbox/${mapStyle}`}
+      mapStyle={mapStyle.startsWith('mapbox://styles/') ? mapStyle : `mapbox://styles/mapbox/${mapStyle}`}
       projection={projection}
       style={{ width: '100%', height: '100%' }}
     >
