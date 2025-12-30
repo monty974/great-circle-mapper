@@ -456,7 +456,7 @@ function App() {
               onClick={() => setMapStyle('mapbox://styles/nicklg/cmjs2o2qr009o01sg2042gza4')}
               title="Blue Sea & Yellow Land"
             >
-              Custom
+              Plain
             </button>
           </div>
         </div>
