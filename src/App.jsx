@@ -284,7 +284,8 @@ function App() {
       name: routes.map(r => {
         const waypoints = r.waypoints.filter(w => w && w.code);
         if (waypoints.length >= 2) {
-          return `${waypoints[0].code} → ${waypoints[waypoints.length - 1].code}`;
+          // Show all waypoints including stops
+          return waypoints.map(w => w.code).join(' → ');
         }
         return r.name;
       }).join(', '),
