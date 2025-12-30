@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Map from './components/Map';
 import AirportSearch from './components/AirportSearch';
 import {
@@ -11,6 +11,35 @@ import {
 } from './utils/greatCircle';
 
 const ROUTE_COLORS = ['#667eea', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
+
+// Encode routes to URL-safe string
+function encodeRoutesToURL(routes, speed) {
+  const data = {
+    routes: routes.map(r => ({
+      id: r.id,
+      name: r.name,
+      waypoints: r.waypoints.filter(w => w).map(w => ({
+        lat: w.lat,
+        lon: w.lon,
+        code: w.code,
+        name: w.name
+      }))
+    })),
+    speed
+  };
+  return btoa(JSON.stringify(data));
+}
+
+// Decode routes from URL-safe string
+function decodeRoutesFromURL(encoded) {
+  try {
+    const data = JSON.parse(atob(encoded));
+    return data;
+  } catch (e) {
+    console.error('Failed to decode route data:', e);
+    return null;
+  }
+}
 
 function App() {
   const [routes, setRoutes] = useState([
@@ -232,6 +261,111 @@ function App() {
     }));
   };
 
+  const handleShare = () => {
+    const encoded = encodeRoutesToURL(routes, speed);
+    const url = `${window.location.origin}${window.location.pathname}?route=${encoded}`;
+
+    navigator.clipboard.writeText(url).then(() => {
+      alert('Share link copied to clipboard!');
+    }).catch(() => {
+      // Fallback: show URL in prompt
+      prompt('Copy this link to share:', url);
+    });
+  };
+
+  // Load routes from URL on mount
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const encoded = params.get('route');
+
+    if (encoded) {
+      const data = decodeRoutesFromURL(encoded);
+
+      if (data) {
+        // Reconstruct routes with proper structure and auto-calculate
+        const speedValue = parseFloat(data.speed || 900);
+
+        const loadedRoutes = data.routes.map((r, index) => {
+          const validWaypoints = r.waypoints.filter(w => w && w.lat && w.lon);
+
+          if (validWaypoints.length < 2) {
+            return {
+              id: r.id,
+              name: r.name,
+              waypoints: r.waypoints,
+              color: ROUTE_COLORS[index % ROUTE_COLORS.length],
+              results: null,
+              paths: []
+            };
+          }
+
+          // Calculate route immediately
+          let totalDistance = 0;
+          const paths = [];
+          const segments = [];
+
+          for (let i = 0; i < validWaypoints.length - 1; i++) {
+            const from = validWaypoints[i];
+            const to = validWaypoints[i + 1];
+
+            const distance = calculateDistance(
+              parseFloat(from.lat),
+              parseFloat(from.lon),
+              parseFloat(to.lat),
+              parseFloat(to.lon)
+            );
+
+            const bearing = calculateBearing(
+              parseFloat(from.lat),
+              parseFloat(from.lon),
+              parseFloat(to.lat),
+              parseFloat(to.lon)
+            );
+
+            const path = generateGreatCirclePath(
+              parseFloat(from.lat),
+              parseFloat(from.lon),
+              parseFloat(to.lat),
+              parseFloat(to.lon),
+              100
+            );
+
+            totalDistance += distance;
+            paths.push(path);
+
+            segments.push({
+              from: from.code || from.name,
+              to: to.code || to.name,
+              distance: formatDistance(distance),
+              bearing: formatBearing(bearing)
+            });
+          }
+
+          const distances = formatDistance(totalDistance);
+          const travelTime = formatTravelTime(totalDistance, speedValue);
+
+          return {
+            id: r.id,
+            name: r.name,
+            waypoints: r.waypoints,
+            color: ROUTE_COLORS[index % ROUTE_COLORS.length],
+            results: {
+              distance: distances,
+              travelTime,
+              segments,
+              totalDistance
+            },
+            paths
+          };
+        });
+
+        setRoutes(loadedRoutes);
+        setSpeed(speedValue);
+        setActiveRouteId(loadedRoutes[0]?.id || 1);
+      }
+    }
+  }, []); // Empty dependency array - only run on mount
+
   const handleClear = () => {
     setRoutes(routes.map(route => ({
       ...route,
@@ -344,6 +478,14 @@ function App() {
               </button>
               <button className="btn-secondary" onClick={handleClear}>
                 Clear All
+              </button>
+              <button
+                className="btn-secondary"
+                onClick={handleShare}
+                disabled={!routes.some(r => r.waypoints.some(w => w))}
+                title="Copy shareable link to clipboard"
+              >
+                📋 Share Link
               </button>
 
               {/* Results for Active Route */}
