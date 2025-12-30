@@ -13,7 +13,7 @@ import {
 const ROUTE_COLORS = ['#667eea', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
 
 // Encode routes to URL-safe string
-function encodeRoutesToURL(routes, speed) {
+function encodeRoutesToURL(routes, speed, projection, mapStyle) {
   const data = {
     routes: routes.map(r => ({
       id: r.id,
@@ -25,7 +25,9 @@ function encodeRoutesToURL(routes, speed) {
         name: w.name
       }))
     })),
-    speed
+    speed,
+    projection,
+    mapStyle
   };
   return btoa(JSON.stringify(data));
 }
@@ -262,7 +264,7 @@ function App() {
   };
 
   const handleShare = () => {
-    const encoded = encodeRoutesToURL(routes, speed);
+    const encoded = encodeRoutesToURL(routes, speed, projection, mapStyle);
     const url = `${window.location.origin}${window.location.pathname}?route=${encoded}`;
 
     navigator.clipboard.writeText(url).then(() => {
@@ -362,6 +364,14 @@ function App() {
         setRoutes(loadedRoutes);
         setSpeed(speedValue);
         setActiveRouteId(loadedRoutes[0]?.id || 1);
+
+        // Restore projection and map style if provided
+        if (data.projection) {
+          setProjection(data.projection);
+        }
+        if (data.mapStyle) {
+          setMapStyle(data.mapStyle);
+        }
       }
     }
   }, []); // Empty dependency array - only run on mount
