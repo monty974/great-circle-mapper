@@ -69,6 +69,8 @@ function App() {
     latitude: 20,
     zoom: 2
   });
+  const [showSavedRoutes, setShowSavedRoutes] = useState(false);
+  const [savedRoutes, setSavedRoutes] = useState([]);
 
   const activeRoute = routes.find(r => r.id === activeRouteId);
 
@@ -277,8 +279,28 @@ function App() {
     const encoded = encodeRoutesToURL(routes, speed, projection, mapStyle, viewState);
     const url = `${window.location.origin}${window.location.pathname}?route=${encoded}`;
 
+    // Save to localStorage
+    const savedRoute = {
+      id: Date.now(),
+      name: routes.map(r => {
+        const waypoints = r.waypoints.filter(w => w && w.code);
+        if (waypoints.length >= 2) {
+          return `${waypoints[0].code} → ${waypoints[waypoints.length - 1].code}`;
+        }
+        return r.name;
+      }).join(', '),
+      url,
+      date: new Date().toISOString(),
+      routeCount: routes.filter(r => r.results).length
+    };
+
+    const existing = JSON.parse(localStorage.getItem('savedRoutes') || '[]');
+    existing.unshift(savedRoute); // Add to beginning
+    localStorage.setItem('savedRoutes', JSON.stringify(existing.slice(0, 50))); // Keep last 50
+    setSavedRoutes(existing.slice(0, 50));
+
     navigator.clipboard.writeText(url).then(() => {
-      alert('Share link copied to clipboard!');
+      alert('Share link copied to clipboard and saved!');
     }).catch(() => {
       // Fallback: show URL in prompt
       prompt('Copy this link to share:', url);
@@ -394,6 +416,26 @@ function App() {
     }
   }, []); // Empty dependency array - only run on mount
 
+  // Load saved routes from localStorage on mount
+  useEffect(() => {
+    const saved = JSON.parse(localStorage.getItem('savedRoutes') || '[]');
+    setSavedRoutes(saved);
+  }, []);
+
+  const handleCopySavedRoute = (url) => {
+    navigator.clipboard.writeText(url).then(() => {
+      alert('Link copied to clipboard!');
+    }).catch(() => {
+      prompt('Copy this link:', url);
+    });
+  };
+
+  const handleDeleteSavedRoute = (id) => {
+    const updated = savedRoutes.filter(r => r.id !== id);
+    localStorage.setItem('savedRoutes', JSON.stringify(updated));
+    setSavedRoutes(updated);
+  };
+
   const handleClear = () => {
     setRoutes(routes.map(route => ({
       ...route,
@@ -408,9 +450,81 @@ function App() {
       <header className="header">
         <h1>Great Circle Calculator</h1>
         <p>Compare multi-leg flight routes</p>
+        <button
+          onClick={() => setShowSavedRoutes(!showSavedRoutes)}
+          style={{
+            marginTop: '15px',
+            padding: '10px 20px',
+            background: 'white',
+            border: 'none',
+            borderRadius: '6px',
+            cursor: 'pointer',
+            fontWeight: '600',
+            fontSize: '0.9em'
+          }}
+        >
+          {showSavedRoutes ? '← Back to Calculator' : '📁 Saved Routes' + (savedRoutes.length > 0 ? ` (${savedRoutes.length})` : '')}
+        </button>
       </header>
 
-      <div className="main-content">
+      {showSavedRoutes ? (
+        <div className="main-content">
+          <div className="input-panel" style={{ gridColumn: '1 / -1' }}>
+            <h2>Saved Routes</h2>
+            {savedRoutes.length === 0 ? (
+              <p style={{ color: '#666', textAlign: 'center', padding: '40px 20px' }}>
+                No saved routes yet. Share a route to save it here!
+              </p>
+            ) : (
+              <div>
+                {savedRoutes.map(saved => (
+                  <div
+                    key={saved.id}
+                    style={{
+                      background: '#f9f9f9',
+                      padding: '15px',
+                      borderRadius: '8px',
+                      marginBottom: '15px',
+                      border: '1px solid #e0e0e0'
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
+                      <div>
+                        <h3 style={{ margin: '0 0 5px 0', fontSize: '1.1em', color: '#333' }}>
+                          {saved.name}
+                        </h3>
+                        <small style={{ color: '#666' }}>
+                          {new Date(saved.date).toLocaleString()} • {saved.routeCount} route{saved.routeCount !== 1 ? 's' : ''}
+                        </small>
+                      </div>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button
+                          onClick={() => handleCopySavedRoute(saved.url)}
+                          className="btn-secondary"
+                          style={{ width: 'auto', padding: '8px 16px', margin: 0 }}
+                        >
+                          📋 Copy Link
+                        </button>
+                        <button
+                          onClick={() => handleDeleteSavedRoute(saved.id)}
+                          className="btn-secondary"
+                          style={{ width: 'auto', padding: '8px 16px', margin: 0, background: '#fee', borderColor: '#fcc' }}
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    </div>
+                    <div style={{ fontSize: '0.85em', color: '#888', wordBreak: 'break-all' }}>
+                      {saved.url}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="main-content">
         <div className="input-panel">
           {/* Route Tabs */}
           <div className="route-tabs">
@@ -635,7 +749,8 @@ function App() {
             </button>
           </div>
         </div>
-      </div>
+        </div>
+      )}
     </div>
   );
 }
