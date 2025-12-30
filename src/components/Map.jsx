@@ -60,7 +60,7 @@ function splitPathAtDateline(path) {
   return segments;
 }
 
-export default function MapComponent({ routes = [], projection = 'globe' }) {
+export default function MapComponent({ routes = [], projection = 'globe', mapStyle = 'streets-v12' }) {
   const mapRef = useRef();
   const [viewState, setViewState] = useState({
     longitude: 0,
@@ -140,7 +140,7 @@ export default function MapComponent({ routes = [], projection = 'globe' }) {
       {...viewState}
       onMove={evt => setViewState(evt.viewState)}
       mapboxAccessToken={MAPBOX_TOKEN}
-      mapStyle="mapbox://styles/mapbox/streets-v12"
+      mapStyle={`mapbox://styles/mapbox/${mapStyle}`}
       projection={projection}
       style={{ width: '100%', height: '100%' }}
     >
