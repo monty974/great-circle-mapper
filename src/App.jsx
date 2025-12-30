@@ -531,11 +531,18 @@ function App() {
                       </div>
                       <div style={{ display: 'flex', gap: '8px' }}>
                         <button
+                          onClick={() => window.open(saved.url, '_blank')}
+                          className="btn-secondary"
+                          style={{ width: 'auto', padding: '8px 16px', margin: 0 }}
+                        >
+                          🔗 Open
+                        </button>
+                        <button
                           onClick={() => handleCopySavedRoute(saved.url)}
                           className="btn-secondary"
                           style={{ width: 'auto', padding: '8px 16px', margin: 0 }}
                         >
-                          📋 Copy Link
+                          📋 Copy
                         </button>
                         <button
                           onClick={() => handleDeleteSavedRoute(saved.id)}
