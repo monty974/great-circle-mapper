@@ -57,6 +57,7 @@ function App() {
   const [projection, setProjection] = useState('globe');
   const [mapStyle, setMapStyle] = useState('streets-v12');
   const [activeRouteId, setActiveRouteId] = useState(1);
+  const [mapKey, setMapKey] = useState(0); // Force map re-render when needed
 
   const activeRoute = routes.find(r => r.id === activeRouteId);
 
@@ -362,6 +363,9 @@ function App() {
         setRoutes(loadedRoutes);
         setSpeed(speedValue);
         setActiveRouteId(loadedRoutes[0]?.id || 1);
+
+        // Force map to re-center on loaded routes
+        setTimeout(() => setMapKey(prev => prev + 1), 200);
       }
     }
   }, []); // Empty dependency array - only run on mount
@@ -488,31 +492,34 @@ function App() {
                 📋 Share Link
               </button>
 
-              {/* Results for Active Route */}
-              {activeRoute.results && (
-                <div className="results">
-                  <h2>Results</h2>
+              {/* Results for All Routes */}
+              {routes.filter(r => r.results).map(route => (
+                <div key={route.id} className="results" style={{ borderLeftColor: route.color }}>
+                  <h2>
+                    <span className="route-dot" style={{ backgroundColor: route.color }}></span>
+                    {route.name} Results
+                  </h2>
                   <div className="result-item">
                     <span className="result-label">Total Distance:</span>
-                    <span className="result-value">{activeRoute.results.distance.km} km</span>
+                    <span className="result-value">{route.results.distance.km} km</span>
                   </div>
                   <div className="result-item">
                     <span className="result-label">Distance (miles):</span>
-                    <span className="result-value">{activeRoute.results.distance.miles} mi</span>
+                    <span className="result-value">{route.results.distance.miles} mi</span>
                   </div>
                   <div className="result-item">
                     <span className="result-label">Distance (nautical miles):</span>
-                    <span className="result-value">{activeRoute.results.distance.nauticalMiles} nm</span>
+                    <span className="result-value">{route.results.distance.nauticalMiles} nm</span>
                   </div>
                   <div className="result-item">
                     <span className="result-label">Travel Time:</span>
-                    <span className="result-value">{activeRoute.results.travelTime}</span>
+                    <span className="result-value">{route.results.travelTime}</span>
                   </div>
 
-                  {activeRoute.results.segments && activeRoute.results.segments.length > 0 && (
+                  {route.results.segments && route.results.segments.length > 0 && (
                     <div className="segments">
                       <h3>Segments</h3>
-                      {activeRoute.results.segments.map((seg, idx) => (
+                      {route.results.segments.map((seg, idx) => (
                         <div key={idx} className="segment-item">
                           <strong>{seg.from} → {seg.to}</strong>
                           <div className="segment-details">
@@ -523,7 +530,7 @@ function App() {
                     </div>
                   )}
                 </div>
-              )}
+              ))}
             </>
           )}
 
@@ -558,6 +565,7 @@ function App() {
 
         <div className="map-panel">
           <Map
+            key={mapKey}
             routes={routes.filter(r => r.paths.length > 0)}
             projection={projection}
             mapStyle={mapStyle}

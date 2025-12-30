@@ -139,6 +139,9 @@ small {
   font-size: 1.3em;
   color: #333;
   margin-bottom: 15px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .result-item {
