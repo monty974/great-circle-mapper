@@ -436,31 +436,29 @@ function App() {
               🗺️ Flat
             </button>
           </div>
-          {projection === 'mercator' && (
-            <div className="map-controls" style={{ bottom: '70px' }}>
-              <button
-                className={`projection-toggle ${mapStyle === 'streets-v12' ? 'active' : ''}`}
-                onClick={() => setMapStyle('streets-v12')}
-                title="Street Map"
-              >
-                Streets
-              </button>
-              <button
-                className={`projection-toggle ${mapStyle === 'satellite-streets-v12' ? 'active' : ''}`}
-                onClick={() => setMapStyle('satellite-streets-v12')}
-                title="Satellite with Streets"
-              >
-                Satellite
-              </button>
-              <button
-                className={`projection-toggle ${mapStyle === 'light-v11' ? 'active' : ''}`}
-                onClick={() => setMapStyle('light-v11')}
-                title="Light Map"
-              >
-                Light
-              </button>
-            </div>
-          )}
+          <div className="map-controls" style={{ bottom: '70px' }}>
+            <button
+              className={`projection-toggle ${mapStyle === 'streets-v12' ? 'active' : ''}`}
+              onClick={() => setMapStyle('streets-v12')}
+              title="Street Map"
+            >
+              Streets
+            </button>
+            <button
+              className={`projection-toggle ${mapStyle === 'satellite-streets-v12' ? 'active' : ''}`}
+              onClick={() => setMapStyle('satellite-streets-v12')}
+              title="Satellite with Streets"
+            >
+              Satellite
+            </button>
+            <button
+              className={`projection-toggle ${mapStyle === 'light-v11' ? 'active' : ''}`}
+              onClick={() => setMapStyle('light-v11')}
+              title="Light Map"
+            >
+              Light
+            </button>
+          </div>
         </div>
       </div>
     </div>
