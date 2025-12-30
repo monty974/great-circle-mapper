@@ -60,18 +60,26 @@ function splitPathAtDateline(path) {
   return segments;
 }
 
-export default function MapComponent({ routes = [], projection = 'globe', mapStyle = 'streets-v12' }) {
+export default function MapComponent({
+  routes = [],
+  projection = 'globe',
+  mapStyle = 'streets-v12',
+  viewState: controlledViewState,
+  onViewStateChange
+}) {
   const mapRef = useRef();
-  const [viewState, setViewState] = useState({
-    longitude: 0,
-    latitude: 20,
-    zoom: 2
-  });
   const [mapLoaded, setMapLoaded] = useState(false);
 
-  // Fit bounds when routes are calculated and map is loaded
+  // Use controlled viewState from props if provided, otherwise use internal state
+  const viewState = controlledViewState;
+  const setViewState = onViewStateChange;
+
+  // Check if a custom viewState was provided (not default)
+  const isDefaultViewState = viewState.longitude === 0 && viewState.latitude === 20 && viewState.zoom === 2;
+
+  // Fit bounds when routes are calculated and map is loaded (only if using default view)
   useEffect(() => {
-    if (!mapLoaded || routes.length === 0 || !mapRef.current) return;
+    if (!mapLoaded || routes.length === 0 || !mapRef.current || !isDefaultViewState) return;
 
     // Check if any routes have been calculated (have results)
     const calculatedRoutes = routes.filter(r => r.results && r.paths && r.paths.length > 0);
@@ -139,7 +147,7 @@ export default function MapComponent({ routes = [], projection = 'globe', mapSty
     }, 300); // 300ms delay to ensure map is ready
 
     return () => clearTimeout(timer);
-  }, [routes, mapLoaded]);
+  }, [routes, mapLoaded, isDefaultViewState]);
 
   return (
     <Map

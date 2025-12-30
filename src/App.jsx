@@ -13,7 +13,7 @@ import {
 const ROUTE_COLORS = ['#667eea', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
 
 // Encode routes to URL-safe string
-function encodeRoutesToURL(routes, speed, projection, mapStyle) {
+function encodeRoutesToURL(routes, speed, projection, mapStyle, viewState) {
   const data = {
     routes: routes.map(r => ({
       id: r.id,
@@ -27,7 +27,12 @@ function encodeRoutesToURL(routes, speed, projection, mapStyle) {
     })),
     speed,
     projection,
-    mapStyle
+    mapStyle,
+    viewState: {
+      longitude: viewState.longitude,
+      latitude: viewState.latitude,
+      zoom: viewState.zoom
+    }
   };
   return btoa(JSON.stringify(data));
 }
@@ -59,6 +64,11 @@ function App() {
   const [projection, setProjection] = useState('globe');
   const [mapStyle, setMapStyle] = useState('streets-v12');
   const [activeRouteId, setActiveRouteId] = useState(1);
+  const [viewState, setViewState] = useState({
+    longitude: 0,
+    latitude: 20,
+    zoom: 2
+  });
 
   const activeRoute = routes.find(r => r.id === activeRouteId);
 
@@ -264,7 +274,7 @@ function App() {
   };
 
   const handleShare = () => {
-    const encoded = encodeRoutesToURL(routes, speed, projection, mapStyle);
+    const encoded = encodeRoutesToURL(routes, speed, projection, mapStyle, viewState);
     const url = `${window.location.origin}${window.location.pathname}?route=${encoded}`;
 
     navigator.clipboard.writeText(url).then(() => {
@@ -371,6 +381,14 @@ function App() {
         }
         if (data.mapStyle) {
           setMapStyle(data.mapStyle);
+        }
+        // Restore view state (zoom, center) if provided
+        if (data.viewState) {
+          setViewState({
+            longitude: data.viewState.longitude || 0,
+            latitude: data.viewState.latitude || 20,
+            zoom: data.viewState.zoom || 2
+          });
         }
       }
     }
@@ -574,6 +592,8 @@ function App() {
             routes={routes.filter(r => r.paths.length > 0)}
             projection={projection}
             mapStyle={mapStyle}
+            viewState={viewState}
+            onViewStateChange={setViewState}
           />
           <div className="map-controls">
             <button
