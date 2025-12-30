@@ -452,11 +452,11 @@ function App() {
               Satellite
             </button>
             <button
-              className={`projection-toggle ${mapStyle === 'outdoors-v12' ? 'active' : ''}`}
-              onClick={() => setMapStyle('outdoors-v12')}
-              title="Blue Sea & Tan Land"
+              className={`projection-toggle ${mapStyle === 'dark-v11' ? 'active' : ''}`}
+              onClick={() => setMapStyle('dark-v11')}
+              title="Dark Theme"
             >
-              Outdoors
+              Dark
             </button>
           </div>
         </div>
