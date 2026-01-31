@@ -327,17 +327,35 @@ function App() {
       if (response.ok) {
         // Reload saved routes list
         loadSavedRoutes();
+
+        // Copy to clipboard and notify user
+        navigator.clipboard.writeText(url).then(() => {
+          alert('Share link copied to clipboard and saved!');
+        }).catch(() => {
+          // Fallback: show URL in prompt
+          prompt('Copy this link to share:', url);
+        });
+      } else {
+        const errorData = await response.json();
+        console.error('Failed to save route:', errorData);
+
+        // Still copy to clipboard even if save failed
+        navigator.clipboard.writeText(url).then(() => {
+          alert('Share link copied to clipboard (but failed to save to database: ' + (errorData.error || 'Unknown error') + ')');
+        }).catch(() => {
+          prompt('Copy this link to share:', url);
+        });
       }
     } catch (error) {
       console.error('Error saving route:', error);
-    }
 
-    navigator.clipboard.writeText(url).then(() => {
-      alert('Share link copied to clipboard and saved!');
-    }).catch(() => {
-      // Fallback: show URL in prompt
-      prompt('Copy this link to share:', url);
-    });
+      // Still copy to clipboard even if save failed
+      navigator.clipboard.writeText(url).then(() => {
+        alert('Share link copied to clipboard (but failed to save to database: ' + error.message + ')');
+      }).catch(() => {
+        prompt('Copy this link to share:', url);
+      });
+    }
   };
 
   // Load routes from URL on mount
@@ -476,8 +494,15 @@ function App() {
   };
 
   const handleDeleteSavedRoute = async (id) => {
+    if (!confirm('Are you sure you want to delete this route?')) {
+      return;
+    }
+
     try {
       const token = localStorage.getItem('admin_session');
+      console.log('Delete attempt - Token exists:', !!token);
+      console.log('Delete attempt - Route ID:', id);
+
       if (!token) {
         alert('You must be logged in as admin to delete routes');
         return;
@@ -490,6 +515,8 @@ function App() {
         },
       });
 
+      console.log('Delete response status:', response.status);
+
       if (response.status === 401) {
         alert('Your session has expired. Please log in again.');
         handleLogout();
@@ -497,15 +524,18 @@ function App() {
       }
 
       if (response.ok) {
+        console.log('Delete successful');
         // Reload saved routes list
         loadSavedRoutes();
+        alert('Route deleted successfully!');
       } else {
         const data = await response.json();
-        alert(`Failed to delete: ${data.error}`);
+        console.error('Delete failed:', data);
+        alert(`Failed to delete: ${data.error || 'Unknown error'}`);
       }
     } catch (error) {
       console.error('Error deleting route:', error);
-      alert('Network error. Please try again.');
+      alert('Network error: ' + error.message);
     }
   };
 

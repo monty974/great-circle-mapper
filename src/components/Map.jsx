@@ -69,6 +69,7 @@ export default function MapComponent({
 }) {
   const mapRef = useRef();
   const [mapLoaded, setMapLoaded] = useState(false);
+  const [lastRouteCount, setLastRouteCount] = useState(0);
 
   // Use controlled viewState from props if provided, otherwise use internal state
   const viewState = controlledViewState;
@@ -77,14 +78,25 @@ export default function MapComponent({
   // Check if a custom viewState was provided (not default)
   const isDefaultViewState = viewState.longitude === 0 && viewState.latitude === 20 && viewState.zoom === 2;
 
-  // Fit bounds when routes are calculated and map is loaded (only if using default view)
+  // Fit bounds when routes are calculated and map is loaded
   useEffect(() => {
-    if (!mapLoaded || routes.length === 0 || !mapRef.current || !isDefaultViewState) return;
+    if (!mapLoaded || routes.length === 0 || !mapRef.current) return;
 
     // Check if any routes have been calculated (have results)
     const calculatedRoutes = routes.filter(r => r.results && r.paths && r.paths.length > 0);
+    const currentRouteCount = calculatedRoutes.length;
 
     if (calculatedRoutes.length === 0) return;
+
+    // Only center if:
+    // 1. Using default viewState (first time), OR
+    // 2. New routes were calculated (route count increased)
+    const shouldCenter = isDefaultViewState || currentRouteCount > lastRouteCount;
+
+    if (!shouldCenter) return;
+
+    // Update the last route count
+    setLastRouteCount(currentRouteCount);
 
     // Small delay to ensure map is fully rendered
     const timer = setTimeout(() => {
@@ -147,7 +159,7 @@ export default function MapComponent({
     }, 300); // 300ms delay to ensure map is ready
 
     return () => clearTimeout(timer);
-  }, [routes, mapLoaded, isDefaultViewState]);
+  }, [routes, mapLoaded, isDefaultViewState, lastRouteCount]);
 
   return (
     <Map
