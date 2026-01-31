@@ -9,9 +9,13 @@
 -- 5. Paste this entire script and click "Run"
 -- ============================================
 
+-- Drop table if exists (for clean reinstall - WARNING: deletes all data!)
+-- DROP TABLE IF EXISTS saved_routes CASCADE;
+
 -- Drop existing policies if they exist (for clean reinstall)
 DROP POLICY IF EXISTS "Allow public read access" ON saved_routes;
 DROP POLICY IF EXISTS "Allow public insert access" ON saved_routes;
+DROP POLICY IF EXISTS "Allow authenticated delete access" ON saved_routes;
 DROP POLICY IF EXISTS "Allow public delete access" ON saved_routes;
 
 -- Create saved_routes table for storing shared route links
@@ -26,19 +30,20 @@ CREATE TABLE IF NOT EXISTS saved_routes (
 -- Create index on created_at for faster sorting
 CREATE INDEX IF NOT EXISTS idx_saved_routes_created_at ON saved_routes(created_at DESC);
 
--- Enable Row Level Security (RLS)
-ALTER TABLE saved_routes ENABLE ROW LEVEL SECURITY;
+-- Disable RLS temporarily to allow all operations from server
+ALTER TABLE saved_routes DISABLE ROW LEVEL SECURITY;
 
--- Create policies to allow all operations (public access)
--- Since this is a public route sharing feature, we allow anyone to read/write
-CREATE POLICY "Allow public read access" ON saved_routes
-  FOR SELECT USING (true);
-
-CREATE POLICY "Allow public insert access" ON saved_routes
-  FOR INSERT WITH CHECK (true);
-
-CREATE POLICY "Allow public delete access" ON saved_routes
-  FOR DELETE USING (true);
+-- OR if you want RLS enabled with proper policies:
+-- ALTER TABLE saved_routes ENABLE ROW LEVEL SECURITY;
+--
+-- CREATE POLICY "Allow public read access" ON saved_routes
+--   FOR SELECT USING (true);
+--
+-- CREATE POLICY "Allow public insert access" ON saved_routes
+--   FOR INSERT WITH CHECK (true);
+--
+-- CREATE POLICY "Allow authenticated delete access" ON saved_routes
+--   FOR DELETE USING (auth.uid() IS NOT NULL);
 
 -- Verify setup
 SELECT 'Table created successfully!' as message;

@@ -58,6 +58,8 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Missing required fields: name, url' });
       }
 
+      console.log('Attempting to insert route:', { name, url, route_count });
+
       const { data, error } = await supabaseClient
         .from('saved_routes')
         .insert([{
@@ -70,11 +72,22 @@ export default async function handler(req, res) {
 
       if (error) {
         console.error('Supabase error (POST saved route):', error);
+        console.error('Error details:', {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code
+        });
         return res.status(500).json({
           error: 'Database error',
-          message: error.message
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code
         });
       }
+
+      console.log('Route saved successfully:', data);
 
       return res.status(201).json(data);
     }
