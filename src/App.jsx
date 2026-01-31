@@ -74,8 +74,27 @@ function App() {
   const [savedRoutes, setSavedRoutes] = useState([]);
   const [adminUser, setAdminUser] = useState(null);
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const [currentPage, setCurrentPage] = useState('calculator'); // 'calculator' or 'admin'
 
   const activeRoute = routes.find(r => r.id === activeRouteId);
+
+  // Handle URL-based routing for /admin
+  useEffect(() => {
+    const checkRoute = () => {
+      const path = window.location.pathname;
+      if (path === '/admin') {
+        setCurrentPage('admin');
+      } else {
+        setCurrentPage('calculator');
+      }
+    };
+
+    checkRoute();
+
+    // Listen for navigation events
+    window.addEventListener('popstate', checkRoute);
+    return () => window.removeEventListener('popstate', checkRoute);
+  }, []);
 
   const addWaypoint = (routeId) => {
     setRoutes(routes.map(route => {
@@ -540,21 +559,23 @@ function App() {
         <h1>Great Circle Calculator</h1>
         <p>Compare multi-leg flight routes</p>
         <div style={{ display: 'flex', gap: '10px', marginTop: '15px', flexWrap: 'wrap', justifyContent: 'center' }}>
-          <button
-            onClick={() => setShowSavedRoutes(!showSavedRoutes)}
-            style={{
-              padding: '10px 20px',
-              background: 'white',
-              border: 'none',
-              borderRadius: '6px',
-              cursor: 'pointer',
-              fontWeight: '600',
-              fontSize: '0.9em'
-            }}
-          >
-            {showSavedRoutes ? '← Back to Calculator' : '📁 Saved Routes' + (savedRoutes.length > 0 ? ` (${savedRoutes.length})` : '')}
-          </button>
-          {adminUser ? (
+          {currentPage === 'calculator' && (
+            <button
+              onClick={() => setShowSavedRoutes(!showSavedRoutes)}
+              style={{
+                padding: '10px 20px',
+                background: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontWeight: '600',
+                fontSize: '0.9em'
+              }}
+            >
+              {showSavedRoutes ? '← Back to Calculator' : '📁 Saved Routes' + (savedRoutes.length > 0 ? ` (${savedRoutes.length})` : '')}
+            </button>
+          )}
+          {adminUser && (
             <button
               onClick={handleLogout}
               style={{
@@ -569,26 +590,96 @@ function App() {
             >
               🔓 Logout Admin
             </button>
-          ) : (
-            <button
-              onClick={() => setShowLoginModal(true)}
-              style={{
-                padding: '10px 20px',
-                background: '#efe',
-                border: '1px solid #cfc',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                fontWeight: '600',
-                fontSize: '0.9em'
-              }}
-            >
-              🔐 Admin Login
-            </button>
           )}
         </div>
       </header>
 
-      {showSavedRoutes ? (
+      {currentPage === 'admin' ? (
+        <div className="main-content">
+          <div className="input-panel" style={{ gridColumn: '1 / -1', maxWidth: '600px', margin: '0 auto' }}>
+            <h2>Admin Panel</h2>
+            {!adminUser ? (
+              <div style={{ textAlign: 'center', padding: '40px 20px' }}>
+                <p style={{ marginBottom: '20px', color: '#666' }}>
+                  Please log in to manage saved routes.
+                </p>
+                <button
+                  onClick={() => setShowLoginModal(true)}
+                  className="btn-primary"
+                  style={{ margin: '0 auto' }}
+                >
+                  🔐 Admin Login
+                </button>
+              </div>
+            ) : (
+              <div>
+                <div style={{ marginBottom: '20px', padding: '15px', background: '#efe', border: '1px solid #cfc', borderRadius: '8px' }}>
+                  <p style={{ margin: 0, color: '#060' }}>✓ Logged in as admin</p>
+                </div>
+                <h3 style={{ marginTop: '30px' }}>Saved Routes Management</h3>
+                {savedRoutes.length === 0 ? (
+                  <p style={{ color: '#666', textAlign: 'center', padding: '40px 20px' }}>
+                    No saved routes yet.
+                  </p>
+                ) : (
+                  <div>
+                    {savedRoutes.map(saved => (
+                      <div
+                        key={saved.id}
+                        style={{
+                          background: '#f9f9f9',
+                          padding: '15px',
+                          borderRadius: '8px',
+                          marginBottom: '15px',
+                          border: '1px solid #e0e0e0'
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
+                          <div>
+                            <h4 style={{ margin: '0 0 5px 0', fontSize: '1.1em', color: '#333' }}>
+                              {saved.name}
+                            </h4>
+                            <small style={{ color: '#666' }}>
+                              {new Date(saved.created_at).toLocaleString()} • {saved.route_count} route{saved.route_count !== 1 ? 's' : ''}
+                            </small>
+                          </div>
+                          <button
+                            onClick={() => handleDeleteSavedRoute(saved.id)}
+                            className="btn-secondary"
+                            style={{ padding: '8px 16px', margin: 0, background: '#fee', borderColor: '#fcc' }}
+                          >
+                            🗑️ Delete
+                          </button>
+                        </div>
+                        <div style={{ fontSize: '0.85em', color: '#888', wordBreak: 'break-all' }}>
+                          {saved.url}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div style={{ marginTop: '30px', textAlign: 'center' }}>
+                  <a
+                    href="/"
+                    style={{
+                      display: 'inline-block',
+                      padding: '10px 20px',
+                      background: 'white',
+                      border: '2px solid #667eea',
+                      borderRadius: '6px',
+                      color: '#667eea',
+                      textDecoration: 'none',
+                      fontWeight: '600'
+                    }}
+                  >
+                    ← Back to Calculator
+                  </a>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : showSavedRoutes ? (
         <div className="main-content">
           <div className="input-panel" style={{ gridColumn: '1 / -1' }}>
             <h2>Saved Routes</h2>
