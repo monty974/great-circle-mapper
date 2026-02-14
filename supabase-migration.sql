@@ -12,11 +12,15 @@
 -- Drop table if exists (for clean reinstall - WARNING: deletes all data!)
 -- DROP TABLE IF EXISTS saved_routes CASCADE;
 
--- Drop existing policies if they exist (for clean reinstall)
+-- Drop ALL existing policies
 DROP POLICY IF EXISTS "Allow public read access" ON saved_routes;
 DROP POLICY IF EXISTS "Allow public insert access" ON saved_routes;
 DROP POLICY IF EXISTS "Allow authenticated delete access" ON saved_routes;
 DROP POLICY IF EXISTS "Allow public delete access" ON saved_routes;
+DROP POLICY IF EXISTS "Anyone can view saved routes" ON saved_routes;
+DROP POLICY IF EXISTS "Authenticated users can delete routes" ON saved_routes;
+DROP POLICY IF EXISTS "Authenticated users can insert routes" ON saved_routes;
+DROP POLICY IF EXISTS "Authenticated users can update routes" ON saved_routes;
 
 -- Create saved_routes table for storing shared route links
 CREATE TABLE IF NOT EXISTS saved_routes (
@@ -30,20 +34,23 @@ CREATE TABLE IF NOT EXISTS saved_routes (
 -- Create index on created_at for faster sorting
 CREATE INDEX IF NOT EXISTS idx_saved_routes_created_at ON saved_routes(created_at DESC);
 
--- Disable RLS temporarily to allow all operations from server
-ALTER TABLE saved_routes DISABLE ROW LEVEL SECURITY;
+-- Enable RLS
+ALTER TABLE saved_routes ENABLE ROW LEVEL SECURITY;
 
--- OR if you want RLS enabled with proper policies:
--- ALTER TABLE saved_routes ENABLE ROW LEVEL SECURITY;
---
--- CREATE POLICY "Allow public read access" ON saved_routes
---   FOR SELECT USING (true);
---
--- CREATE POLICY "Allow public insert access" ON saved_routes
---   FOR INSERT WITH CHECK (true);
---
--- CREATE POLICY "Allow authenticated delete access" ON saved_routes
---   FOR DELETE USING (auth.uid() IS NOT NULL);
+-- Anyone can view saved routes (anon + authenticated)
+CREATE POLICY "Anyone can view saved routes" ON saved_routes
+  FOR SELECT TO anon, authenticated
+  USING (true);
+
+-- Anyone can insert saved routes (anon + authenticated)
+CREATE POLICY "Anyone can insert routes" ON saved_routes
+  FOR INSERT TO anon, authenticated
+  WITH CHECK (true);
+
+-- Only authenticated users can delete routes
+CREATE POLICY "Authenticated users can delete routes" ON saved_routes
+  FOR DELETE TO authenticated
+  USING (true);
 
 -- Verify setup
 SELECT 'Table created successfully!' as message;
