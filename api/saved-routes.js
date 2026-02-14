@@ -115,8 +115,18 @@ export default async function handler(req, res) {
         return res.status(401).json({ error: 'Invalid or expired token' });
       }
 
+      // Create an authenticated Supabase client using the user's token
+      // This ensures the request runs as 'authenticated' role for RLS
+      const authenticatedClient = createClient(supabaseUrl, supabaseAnonKey, {
+        global: {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        }
+      });
+
       // User is authenticated, proceed with delete
-      const { error } = await supabaseClient
+      const { error } = await authenticatedClient
         .from('saved_routes')
         .delete()
         .eq('id', id);
