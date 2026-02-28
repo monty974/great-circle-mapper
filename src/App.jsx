@@ -364,6 +364,17 @@ function App() {
     const encoded = params.get('route');
 
     if (encoded) {
+      // Track click on shared link by matching the full URL
+      const fullUrl = window.location.href;
+      fetch('/api/saved-routes')
+        .then(r => r.json())
+        .then(saved => {
+          const match = saved.find(s => s.url === fullUrl);
+          if (match) {
+            fetch(`/api/saved-routes?id=${match.id}`, { method: 'PATCH' });
+          }
+        })
+        .catch(() => {}); // Silently fail - tracking is non-critical
       const data = decodeRoutesFromURL(encoded);
 
       if (data) {
@@ -673,13 +684,26 @@ function App() {
                               {new Date(saved.created_at).toLocaleString()} • {saved.route_count} route{saved.route_count !== 1 ? 's' : ''}
                             </small>
                           </div>
-                          <button
-                            onClick={() => handleDeleteSavedRoute(saved.id)}
-                            className="btn-secondary"
-                            style={{ padding: '8px 16px', margin: 0, background: '#fee', borderColor: '#fcc' }}
-                          >
-                            🗑️ Delete
-                          </button>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <span style={{
+                              background: '#667eea',
+                              color: 'white',
+                              borderRadius: '20px',
+                              padding: '4px 12px',
+                              fontSize: '0.85em',
+                              fontWeight: '600',
+                              whiteSpace: 'nowrap'
+                            }}>
+                              👁 {saved.click_count || 0} view{saved.click_count !== 1 ? 's' : ''}
+                            </span>
+                            <button
+                              onClick={() => handleDeleteSavedRoute(saved.id)}
+                              className="btn-secondary"
+                              style={{ padding: '8px 16px', margin: 0, background: '#fee', borderColor: '#fcc' }}
+                            >
+                              🗑️ Delete
+                            </button>
+                          </div>
                         </div>
                         <div style={{ fontSize: '0.85em', color: '#888', wordBreak: 'break-all' }}>
                           {saved.url}

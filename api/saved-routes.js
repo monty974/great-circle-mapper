@@ -20,7 +20,7 @@ export default async function handler(req, res) {
   // Enable CORS
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,DELETE,OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PATCH,DELETE,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
   if (req.method === 'OPTIONS') {
@@ -90,6 +90,24 @@ export default async function handler(req, res) {
       console.log('Route saved successfully:', data);
 
       return res.status(201).json(data);
+    }
+
+    // PATCH - Increment click count when a shared link is opened
+    if (req.method === 'PATCH') {
+      const { id } = req.query;
+
+      if (!id) {
+        return res.status(400).json({ error: 'Missing route ID' });
+      }
+
+      const { error } = await supabaseClient.rpc('increment_click_count', { row_id: parseInt(id) });
+
+      if (error) {
+        console.error('Supabase error (PATCH click count):', error);
+        return res.status(500).json({ error: 'Database error', message: error.message });
+      }
+
+      return res.status(200).json({ success: true });
     }
 
     // DELETE - Delete a saved route by ID (requires authentication)
