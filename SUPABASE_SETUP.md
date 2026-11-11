@@ -57,7 +57,8 @@ The migration creates:
 - **saved_routes** table with columns:
   - `id` - Auto-incrementing primary key
   - `name` - Display name (e.g., "MEL → LHR, SYD → BKK")
-  - `url` - Full shareable URL
+  - `url` - Full shareable URL (short form: `?r=<slug>`)
+  - `slug` / `data` / `legacy_url` - added by `add-short-links.sql` (short link id, route payload, original long URL)
   - `route_count` - Number of routes in the calculation
   - `created_at` - Timestamp when route was saved
 - **Index** on `created_at` for fast sorting

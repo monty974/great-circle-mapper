@@ -1,4 +1,16 @@
 import { createClient } from '@supabase/supabase-js';
+import { randomBytes } from 'crypto';
+
+const SLUG_ALPHABET = 'abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const SLUG_LENGTH = 7;
+const LIST_COLUMNS = 'id,name,url,slug,route_count,click_count,created_at';
+
+function generateSlug() {
+  const bytes = randomBytes(SLUG_LENGTH);
+  let slug = '';
+  for (const b of bytes) slug += SLUG_ALPHABET[b % SLUG_ALPHABET.length];
+  return slug;
+}
 
 // Create Supabase client
 const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
@@ -31,11 +43,28 @@ export default async function handler(req, res) {
   try {
     const supabaseClient = getSupabase();
 
+    // GET - Fetch a single route by short slug or legacy long URL
+    if (req.method === 'GET' && (req.query.slug || req.query.legacy_url)) {
+      const { slug, legacy_url } = req.query;
+      let query = supabaseClient.from('saved_routes').select('id,slug,name,data');
+      query = slug ? query.eq('slug', slug) : query.eq('legacy_url', legacy_url);
+      const { data, error } = await query.maybeSingle();
+
+      if (error) {
+        console.error('Supabase error (GET route by slug):', error);
+        return res.status(500).json({ error: 'Database error', message: error.message });
+      }
+      if (!data) {
+        return res.status(404).json({ error: 'Route not found' });
+      }
+      return res.status(200).json(data);
+    }
+
     // GET - Fetch all saved routes (most recent first)
     if (req.method === 'GET') {
       const { data, error } = await supabaseClient
         .from('saved_routes')
-        .select('*')
+        .select(LIST_COLUMNS)
         .order('created_at', { ascending: false })
         .limit(50);
 
@@ -50,46 +79,45 @@ export default async function handler(req, res) {
       return res.status(200).json(data || []);
     }
 
-    // POST - Create a new saved route
+    // POST - Create a new saved route with a short link
     if (req.method === 'POST') {
-      const { name, url, route_count } = req.body;
+      const { name, data: routeData, base_url, route_count } = req.body;
 
-      if (!name || !url) {
-        return res.status(400).json({ error: 'Missing required fields: name, url' });
+      if (!name || !routeData || typeof routeData !== 'object' || !base_url || typeof base_url !== 'string') {
+        return res.status(400).json({ error: 'Missing required fields: name, data, base_url' });
       }
 
-      console.log('Attempting to insert route:', { name, url, route_count });
+      // Retry on the (very unlikely) slug collision
+      let lastError;
+      for (let attempt = 0; attempt < 5; attempt++) {
+        const slug = generateSlug();
+        const { data, error } = await supabaseClient
+          .from('saved_routes')
+          .insert([{
+            name,
+            slug,
+            data: routeData,
+            url: `${base_url}?r=${slug}`,
+            route_count: route_count || 1
+          }])
+          .select(LIST_COLUMNS)
+          .single();
 
-      const { data, error } = await supabaseClient
-        .from('saved_routes')
-        .insert([{
-          name,
-          url,
-          route_count: route_count || 1
-        }])
-        .select()
-        .single();
-
-      if (error) {
-        console.error('Supabase error (POST saved route):', error);
-        console.error('Error details:', {
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-          code: error.code
-        });
-        return res.status(500).json({
-          error: 'Database error',
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-          code: error.code
-        });
+        if (!error) {
+          return res.status(201).json(data);
+        }
+        lastError = error;
+        if (error.code !== '23505') break; // only retry unique violations
       }
 
-      console.log('Route saved successfully:', data);
-
-      return res.status(201).json(data);
+      console.error('Supabase error (POST saved route):', lastError);
+      return res.status(500).json({
+        error: 'Database error',
+        message: lastError.message,
+        details: lastError.details,
+        hint: lastError.hint,
+        code: lastError.code
+      });
     }
 
     // PATCH - Increment click count when a shared link is opened

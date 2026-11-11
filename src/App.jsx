@@ -13,9 +13,9 @@ import {
 
 const ROUTE_COLORS = ['#667eea', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
 
-// Encode routes to URL-safe string
-function encodeRoutesToURL(routes, speed, projection, mapStyle, viewState) {
-  const data = {
+// Build the serializable share payload for the current state
+function buildShareData(routes, speed, projection, mapStyle, viewState) {
+  return {
     routes: routes.map(r => ({
       id: r.id,
       name: r.name,
@@ -35,10 +35,15 @@ function encodeRoutesToURL(routes, speed, projection, mapStyle, viewState) {
       zoom: viewState.zoom
     }
   };
+}
+
+// Encode share data into a long self-contained URL param (legacy format,
+// used as a fallback when the short link can't be saved)
+function encodeRoutesToURL(data) {
   return btoa(JSON.stringify(data));
 }
 
-// Decode routes from URL-safe string
+// Decode routes from URL-safe string (legacy ?route= links)
 function decodeRoutesFromURL(encoded) {
   try {
     const data = JSON.parse(atob(encoded));
@@ -298,10 +303,20 @@ function App() {
   };
 
   const handleShare = async () => {
-    const encoded = encodeRoutesToURL(routes, speed, projection, mapStyle, viewState);
-    const url = `${window.location.origin}${window.location.pathname}?route=${encoded}`;
+    const data = buildShareData(routes, speed, projection, mapStyle, viewState);
+    const baseUrl = `${window.location.origin}${window.location.pathname}`;
+    // Fallback long link, used only if the short link can't be saved
+    const longUrl = `${baseUrl}?route=${encodeRoutesToURL(data)}`;
 
-    // Save to Supabase
+    const copyLink = (url, successMessage) => {
+      navigator.clipboard.writeText(url).then(() => {
+        alert(successMessage);
+      }).catch(() => {
+        // Fallback: show URL in prompt
+        prompt('Copy this link to share:', url);
+      });
+    };
+
     const savedRoute = {
       name: routes.map(r => {
         const waypoints = r.waypoints.filter(w => w && w.code);
@@ -311,7 +326,8 @@ function App() {
         }
         return r.name;
       }).join(', '),
-      url,
+      data,
+      base_url: baseUrl,
       route_count: routes.filter(r => r.results).length
     };
 
@@ -325,156 +341,156 @@ function App() {
       });
 
       if (response.ok) {
+        const saved = await response.json();
         // Reload saved routes list
         loadSavedRoutes();
-
-        // Copy to clipboard and notify user
-        navigator.clipboard.writeText(url).then(() => {
-          alert('Share link copied to clipboard and saved!');
-        }).catch(() => {
-          // Fallback: show URL in prompt
-          prompt('Copy this link to share:', url);
-        });
+        copyLink(saved.url, 'Share link copied to clipboard and saved!');
       } else {
         const errorData = await response.json();
         console.error('Failed to save route:', errorData);
-
-        // Still copy to clipboard even if save failed
-        navigator.clipboard.writeText(url).then(() => {
-          alert('Share link copied to clipboard (but failed to save to database: ' + (errorData.error || 'Unknown error') + ')');
-        }).catch(() => {
-          prompt('Copy this link to share:', url);
-        });
+        copyLink(longUrl, 'Long share link copied to clipboard (but failed to save short link: ' + (errorData.error || 'Unknown error') + ')');
       }
     } catch (error) {
       console.error('Error saving route:', error);
+      copyLink(longUrl, 'Long share link copied to clipboard (but failed to save short link: ' + error.message + ')');
+    }
+  };
 
-      // Still copy to clipboard even if save failed
-      navigator.clipboard.writeText(url).then(() => {
-        alert('Share link copied to clipboard (but failed to save to database: ' + error.message + ')');
-      }).catch(() => {
-        prompt('Copy this link to share:', url);
+  // Apply decoded shared-route data to app state and auto-calculate routes
+  const applySharedData = (data) => {
+    if (data) {
+      // Reconstruct routes with proper structure and auto-calculate
+      const speedValue = parseFloat(data.speed || 900);
+
+      const loadedRoutes = data.routes.map((r, index) => {
+        const validWaypoints = r.waypoints.filter(w => w && w.lat && w.lon);
+
+        if (validWaypoints.length < 2) {
+          return {
+            id: r.id,
+            name: r.name,
+            waypoints: r.waypoints,
+            color: ROUTE_COLORS[index % ROUTE_COLORS.length],
+            results: null,
+            paths: []
+          };
+        }
+
+        // Calculate route immediately
+        let totalDistance = 0;
+        const paths = [];
+        const segments = [];
+
+        for (let i = 0; i < validWaypoints.length - 1; i++) {
+          const from = validWaypoints[i];
+          const to = validWaypoints[i + 1];
+
+          const distance = calculateDistance(
+            parseFloat(from.lat),
+            parseFloat(from.lon),
+            parseFloat(to.lat),
+            parseFloat(to.lon)
+          );
+
+          const bearing = calculateBearing(
+            parseFloat(from.lat),
+            parseFloat(from.lon),
+            parseFloat(to.lat),
+            parseFloat(to.lon)
+          );
+
+          const path = generateGreatCirclePath(
+            parseFloat(from.lat),
+            parseFloat(from.lon),
+            parseFloat(to.lat),
+            parseFloat(to.lon),
+            100
+          );
+
+          totalDistance += distance;
+          paths.push(path);
+
+          segments.push({
+            from: from.code || from.name,
+            to: to.code || to.name,
+            distance: formatDistance(distance),
+            bearing: formatBearing(bearing)
+          });
+        }
+
+        const distances = formatDistance(totalDistance);
+        const travelTime = formatTravelTime(totalDistance, speedValue);
+
+        return {
+          id: r.id,
+          name: r.name,
+          waypoints: r.waypoints,
+          color: ROUTE_COLORS[index % ROUTE_COLORS.length],
+          results: {
+            distance: distances,
+            travelTime,
+            segments,
+            totalDistance
+          },
+          paths
+        };
       });
+
+      setRoutes(loadedRoutes);
+      setSpeed(speedValue);
+      setActiveRouteId(loadedRoutes[0]?.id || 1);
+
+      // Restore projection and map style if provided
+      if (data.projection) {
+        setProjection(data.projection);
+      }
+      if (data.mapStyle) {
+        setMapStyle(data.mapStyle);
+      }
+      // Restore view state (zoom, center) if provided
+      if (data.viewState) {
+        setViewState({
+          longitude: data.viewState.longitude || 0,
+          latitude: data.viewState.latitude || 20,
+          zoom: data.viewState.zoom || 2
+        });
+      }
     }
   };
 
   // Load routes from URL on mount
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+    const slug = params.get('r');
     const encoded = params.get('route');
 
-    if (encoded) {
-      // Track click on shared link by matching the full URL
-      const fullUrl = window.location.href;
-      fetch('/api/saved-routes')
-        .then(r => r.json())
-        .then(saved => {
-          const match = saved.find(s => s.url === fullUrl);
-          if (match) {
-            fetch(`/api/saved-routes?id=${match.id}`, { method: 'PATCH' });
+    if (slug) {
+      // Short link: fetch the route data stored in the database
+      fetch(`/api/saved-routes?slug=${encodeURIComponent(slug)}`)
+        .then(r => (r.ok ? r.json() : Promise.reject(new Error('Shared route not found'))))
+        .then(row => {
+          applySharedData(row.data);
+          // Track click - non-critical
+          fetch(`/api/saved-routes?id=${row.id}`, { method: 'PATCH' }).catch(() => {});
+        })
+        .catch(err => console.error('Failed to load shared route:', err));
+    } else if (encoded) {
+      // Legacy long link: data is in the URL itself
+      const data = decodeRoutesFromURL(encoded);
+      if (data) applySharedData(data);
+
+      // Track click and swap the address bar to the short link if this
+      // legacy URL has been migrated - non-critical
+      fetch(`/api/saved-routes?legacy_url=${encodeURIComponent(window.location.href)}`)
+        .then(r => (r.ok ? r.json() : null))
+        .then(row => {
+          if (!row) return;
+          fetch(`/api/saved-routes?id=${row.id}`, { method: 'PATCH' }).catch(() => {});
+          if (row.slug) {
+            window.history.replaceState(null, '', `${window.location.pathname}?r=${row.slug}`);
           }
         })
-        .catch(() => {}); // Silently fail - tracking is non-critical
-      const data = decodeRoutesFromURL(encoded);
-
-      if (data) {
-        // Reconstruct routes with proper structure and auto-calculate
-        const speedValue = parseFloat(data.speed || 900);
-
-        const loadedRoutes = data.routes.map((r, index) => {
-          const validWaypoints = r.waypoints.filter(w => w && w.lat && w.lon);
-
-          if (validWaypoints.length < 2) {
-            return {
-              id: r.id,
-              name: r.name,
-              waypoints: r.waypoints,
-              color: ROUTE_COLORS[index % ROUTE_COLORS.length],
-              results: null,
-              paths: []
-            };
-          }
-
-          // Calculate route immediately
-          let totalDistance = 0;
-          const paths = [];
-          const segments = [];
-
-          for (let i = 0; i < validWaypoints.length - 1; i++) {
-            const from = validWaypoints[i];
-            const to = validWaypoints[i + 1];
-
-            const distance = calculateDistance(
-              parseFloat(from.lat),
-              parseFloat(from.lon),
-              parseFloat(to.lat),
-              parseFloat(to.lon)
-            );
-
-            const bearing = calculateBearing(
-              parseFloat(from.lat),
-              parseFloat(from.lon),
-              parseFloat(to.lat),
-              parseFloat(to.lon)
-            );
-
-            const path = generateGreatCirclePath(
-              parseFloat(from.lat),
-              parseFloat(from.lon),
-              parseFloat(to.lat),
-              parseFloat(to.lon),
-              100
-            );
-
-            totalDistance += distance;
-            paths.push(path);
-
-            segments.push({
-              from: from.code || from.name,
-              to: to.code || to.name,
-              distance: formatDistance(distance),
-              bearing: formatBearing(bearing)
-            });
-          }
-
-          const distances = formatDistance(totalDistance);
-          const travelTime = formatTravelTime(totalDistance, speedValue);
-
-          return {
-            id: r.id,
-            name: r.name,
-            waypoints: r.waypoints,
-            color: ROUTE_COLORS[index % ROUTE_COLORS.length],
-            results: {
-              distance: distances,
-              travelTime,
-              segments,
-              totalDistance
-            },
-            paths
-          };
-        });
-
-        setRoutes(loadedRoutes);
-        setSpeed(speedValue);
-        setActiveRouteId(loadedRoutes[0]?.id || 1);
-
-        // Restore projection and map style if provided
-        if (data.projection) {
-          setProjection(data.projection);
-        }
-        if (data.mapStyle) {
-          setMapStyle(data.mapStyle);
-        }
-        // Restore view state (zoom, center) if provided
-        if (data.viewState) {
-          setViewState({
-            longitude: data.viewState.longitude || 0,
-            latitude: data.viewState.latitude || 20,
-            zoom: data.viewState.zoom || 2
-          });
-        }
-      }
+        .catch(() => {});
     }
   }, []); // Empty dependency array - only run on mount
 
