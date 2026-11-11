@@ -11,6 +11,9 @@ import {
   formatBearing
 } from './utils/greatCircle';
 
+// Short link slugs are alphanumeric (see api/saved-routes.js)
+const SLUG_PATTERN = /^[A-Za-z0-9]{1,32}$/;
+
 const ROUTE_COLORS = ['#667eea', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
 
 // Build the serializable share payload for the current state
@@ -343,7 +346,7 @@ function App() {
       if (response.ok) {
         const saved = await response.json();
         // Reload saved routes list
-        loadSavedRoutes();
+        void loadSavedRoutes();
         copyLink(saved.url, 'Share link copied to clipboard and saved!');
       } else {
         const errorData = await response.json();
@@ -464,9 +467,11 @@ function App() {
     const slug = params.get('r');
     const encoded = params.get('route');
 
-    if (slug) {
+    if (slug && !SLUG_PATTERN.test(slug)) {
+      console.error('Invalid shared route link');
+    } else if (slug) {
       // Short link: fetch the route data stored in the database
-      fetch(`/api/saved-routes?slug=${encodeURIComponent(slug)}`)
+      fetch('/api/saved-routes?' + new URLSearchParams({ slug }))
         .then(r => (r.ok ? r.json() : Promise.reject(new Error('Shared route not found'))))
         .then(row => {
           applySharedData(row.data);
@@ -481,7 +486,7 @@ function App() {
 
       // Track click and swap the address bar to the short link if this
       // legacy URL has been migrated - non-critical
-      fetch(`/api/saved-routes?legacy_url=${encodeURIComponent(window.location.href)}`)
+      fetch('/api/saved-routes?' + new URLSearchParams({ legacy_url: window.location.href }))
         .then(r => (r.ok ? r.json() : null))
         .then(row => {
           if (!row) return;
@@ -509,7 +514,7 @@ function App() {
 
   // Load saved routes on mount
   useEffect(() => {
-    loadSavedRoutes();
+    void loadSavedRoutes();
   }, []);
 
   const handleCopySavedRoute = (url) => {
@@ -553,7 +558,7 @@ function App() {
       if (response.ok) {
         console.log('Delete successful');
         // Reload saved routes list
-        loadSavedRoutes();
+        void loadSavedRoutes();
         alert('Route deleted successfully!');
       } else {
         const data = await response.json();

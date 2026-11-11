@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { randomBytes } from 'crypto';
+import { randomBytes } from 'node:crypto';
 
 const SLUG_ALPHABET = 'abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const SLUG_LENGTH = 7;
