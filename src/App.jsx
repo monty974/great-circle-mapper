@@ -11,6 +11,9 @@ import {
   formatBearing
 } from './utils/greatCircle';
 
+// Canonical origin for generated share links (override with VITE_SHARE_ORIGIN)
+const SHARE_ORIGIN = (import.meta.env.VITE_SHARE_ORIGIN || 'https://gcmap.jetmap.au').replace(/\/$/, '');
+
 // Short link slugs are alphanumeric (see api/saved-routes.js)
 const SLUG_PATTERN = /^[A-Za-z0-9]{1,32}$/;
 
@@ -307,7 +310,7 @@ function App() {
 
   const handleShare = async () => {
     const data = buildShareData(routes, speed, projection, mapStyle, viewState);
-    const baseUrl = `${window.location.origin}${window.location.pathname}`;
+    const baseUrl = `${SHARE_ORIGIN}${window.location.pathname}`;
     // Fallback long link, used only if the short link can't be saved
     const longUrl = `${baseUrl}?route=${encodeRoutesToURL(data)}`;
 
